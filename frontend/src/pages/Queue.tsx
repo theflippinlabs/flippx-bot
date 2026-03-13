@@ -1,0 +1,173 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { Plus, Trash2, ToggleLeft, ToggleRight, List, MessageSquare } from 'lucide-react'
+import toast from 'react-hot-toast'
+import {
+  getQueueTweets, addToQueue, removeFromQueue,
+  getRules, createRule, toggleRule, deleteRule
+} from '../lib/api'
+
+export default function QueuePage() {
+  const [tab, setTab] = useState<'queue' | 'rules'>('queue')
+  const [queueContent, setQueueContent] = useState('')
+  const [queuePriority, setQueuePriority] = useState(0)
+  const [ruleKeyword, setRuleKeyword] = useState('')
+  const [ruleTemplate, setRuleTemplate] = useState('')
+  const [ruleMatchType, setRuleMatchType] = useState('contains')
+  const queryClient = useQueryClient()
+
+  const { data: queueData } = useQuery({ queryKey: ['queue'], queryFn: () => getQueueTweets('pending') })
+  const { data: rules } = useQuery({ queryKey: ['rules'], queryFn: getRules })
+
+  const addQueueMutation = useMutation({
+    mutationFn: () => addToQueue(queueContent, queuePriority),
+    onSuccess: () => {
+      toast.success('Ajouté à la queue')
+      setQueueContent('')
+      queryClient.invalidateQueries({ queryKey: ['queue'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const removeQueueMutation = useMutation({
+    mutationFn: removeFromQueue,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['queue'] }),
+  })
+
+  const createRuleMutation = useMutation({
+    mutationFn: () => createRule({ keyword: ruleKeyword, reply_template: ruleTemplate, match_type: ruleMatchType }),
+    onSuccess: () => {
+      toast.success('Règle créée')
+      setRuleKeyword('')
+      setRuleTemplate('')
+      queryClient.invalidateQueries({ queryKey: ['rules'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const toggleRuleMutation = useMutation({
+    mutationFn: toggleRule,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rules'] }),
+  })
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: deleteRule,
+    onSuccess: () => {
+      toast.success('Règle supprimée')
+      queryClient.invalidateQueries({ queryKey: ['rules'] })
+    },
+  })
+
+  return (
+    <div className="p-8 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Queue & Auto-reply</h1>
+        <p className="text-slate-400 mt-1">Gère la file d'attente et les règles de réponse automatique</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1 w-fit">
+        <button onClick={() => setTab('queue')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'queue' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}>
+          <List className="w-4 h-4" /> Queue ({queueData?.total ?? 0})
+        </button>
+        <button onClick={() => setTab('rules')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'rules' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}>
+          <MessageSquare className="w-4 h-4" /> Auto-reply ({Array.isArray(rules) ? rules.length : 0})
+        </button>
+      </div>
+
+      {tab === 'queue' && (
+        <div className="space-y-6">
+          {/* Add to queue */}
+          <div className="card space-y-4">
+            <h2 className="font-semibold flex items-center gap-2"><Plus className="w-4 h-4" />Ajouter à la queue</h2>
+            <textarea className="input resize-none h-20" placeholder="Contenu du tweet..." value={queueContent} onChange={e => setQueueContent(e.target.value)} maxLength={280} />
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Priorité (0-10)</label>
+                <input type="number" className="input w-24" min={0} max={10} value={queuePriority} onChange={e => setQueuePriority(Number(e.target.value))} />
+              </div>
+              <div className="flex items-end">
+                <button className="btn-primary h-10" disabled={!queueContent.trim() || addQueueMutation.isPending} onClick={() => addQueueMutation.mutate()}>
+                  Ajouter
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Queue list */}
+          <div className="card space-y-3">
+            <h2 className="font-semibold">En attente ({queueData?.total ?? 0})</h2>
+            {queueData?.tweets?.length === 0 && <p className="text-slate-500 text-sm">La queue est vide.</p>}
+            {queueData?.tweets?.map((tweet: { id: number; content: string; priority: number; created_at: string }) => (
+              <div key={tweet.id} className="flex items-center gap-3 border border-slate-800 rounded-lg p-3">
+                <span className="badge bg-sky-500/10 text-sky-400 shrink-0">P{tweet.priority}</span>
+                <p className="text-sm text-slate-200 flex-1 truncate">{tweet.content}</p>
+                <button className="text-slate-500 hover:text-red-400 transition-colors shrink-0" onClick={() => removeQueueMutation.mutate(tweet.id)}>
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'rules' && (
+        <div className="space-y-6">
+          {/* Create rule */}
+          <div className="card space-y-4">
+            <h2 className="font-semibold flex items-center gap-2"><Plus className="w-4 h-4" />Nouvelle règle auto-reply</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Mot-clé déclencheur</label>
+                <input className="input" placeholder="ex: aide, help, bonjour..." value={ruleKeyword} onChange={e => setRuleKeyword(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Type de correspondance</label>
+                <select className="input" value={ruleMatchType} onChange={e => setRuleMatchType(e.target.value)}>
+                  <option value="contains">Contient</option>
+                  <option value="exact">Exact</option>
+                  <option value="regex">Regex</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Réponse automatique</label>
+              <textarea className="input resize-none h-20" placeholder="Réponse à envoyer..." value={ruleTemplate} onChange={e => setRuleTemplate(e.target.value)} maxLength={280} />
+            </div>
+            <button className="btn-primary" disabled={!ruleKeyword.trim() || !ruleTemplate.trim() || createRuleMutation.isPending} onClick={() => createRuleMutation.mutate()}>
+              Créer la règle
+            </button>
+          </div>
+
+          {/* Rules list */}
+          <div className="card space-y-3">
+            <h2 className="font-semibold">Règles actives</h2>
+            {!Array.isArray(rules) || rules.length === 0 && <p className="text-slate-500 text-sm">Aucune règle configurée.</p>}
+            {Array.isArray(rules) && rules.map((rule: { id: number; keyword: string; reply_template: string; match_type: string; is_active: boolean; trigger_count: number }) => (
+              <div key={rule.id} className={`border rounded-lg p-4 transition-opacity ${rule.is_active ? 'border-slate-700' : 'border-slate-800 opacity-50'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="badge bg-purple-500/10 text-purple-400">{rule.keyword}</span>
+                      <span className="badge bg-slate-800 text-slate-400">{rule.match_type}</span>
+                      <span className="text-xs text-slate-500">{rule.trigger_count} déclenchements</span>
+                    </div>
+                    <p className="text-sm text-slate-300">{rule.reply_template}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => toggleRuleMutation.mutate(rule.id)} className="text-slate-400 hover:text-sky-400 transition-colors">
+                      {rule.is_active ? <ToggleRight className="w-5 h-5 text-emerald-400" /> : <ToggleLeft className="w-5 h-5" />}
+                    </button>
+                    <button onClick={() => deleteRuleMutation.mutate(rule.id)} className="text-slate-500 hover:text-red-400 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
