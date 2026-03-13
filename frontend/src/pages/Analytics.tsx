@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Legend
+  ResponsiveContainer, Legend
 } from 'recharts'
 import { Heart, Repeat2, Eye, TrendingUp, MessageCircle } from 'lucide-react'
 import { getOverview, getTimeline, getTopTweets } from '../lib/api'
