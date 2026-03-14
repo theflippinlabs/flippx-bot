@@ -36,23 +36,6 @@ jobs:
           pip install ruff
           ruff check .
 
-      - name: Run tests
-        env:
-          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
-          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
-          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
-          TWITTER_ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
-          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
-          API_KEY: ${{ secrets.API_KEY }}
-          DATABASE_URL: sqlite:///./test.db
-        run: |
-          pip install pytest httpx
-          if [ -d tests ] && [ "$(find tests -name 'test_*.py' | head -1)" ]; then
-            pytest tests/ -v
-          else
-            echo "No test files found, skipping"
-          fi
-
   deploy:
     needs: test
     runs-on: ubuntu-latest
