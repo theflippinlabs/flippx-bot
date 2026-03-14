@@ -52,3 +52,25 @@ export const getTimeline = (days = 7) =>
   api.get('/analytics/timeline', { params: { days } }).then(r => r.data)
 export const getTopTweets = (metric = 'likes') =>
   api.get('/analytics/top-tweets', { params: { metric } }).then(r => r.data)
+
+// Bot control
+export const toggleBot = () => api.post('/auth/toggle').then(r => r.data)
+export const triggerBotCycle = () => api.post('/auth/run-cycle').then(r => r.data)
+
+// Settings
+export const getSettings = () => api.get('/settings/').then(r => r.data)
+export const updateSettings = (data: {
+  tweet_interval_minutes?: number
+  replies_per_run?: number
+  likes_per_run?: number
+  retweets_per_run?: number
+}) => api.patch('/settings/', data).then(r => r.data)
+export const getPersona = () => api.get('/settings/persona').then(r => r.data)
+export const updatePersona = (data: {
+  bot_persona?: string
+  reply_persona?: string
+}) => api.patch('/settings/persona', data).then(r => r.data)
+
+// Activity
+export const getActivityLog = (limit = 50) =>
+  api.get('/activity/', { params: { limit } }).then(r => r.data)

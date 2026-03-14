@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import SchedulerPage from './pages/Scheduler'
 import QueuePage from './pages/Queue'
 import AnalyticsPage from './pages/Analytics'
+import SettingsPage from './pages/Settings'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="scheduler" element={<SchedulerPage />} />
           <Route path="queue" element={<QueuePage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
