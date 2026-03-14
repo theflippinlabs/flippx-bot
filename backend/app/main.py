@@ -2,15 +2,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+import logging
+
 from app.database import engine, Base
 from app.routes import tweets, scheduler, analytics, queue, auth
 from app.services.scheduler_service import scheduler_service
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
-    scheduler_service.start()
+    try:
+        scheduler_service.start()
+    except Exception as e:
+        logger.error(f"Scheduler failed to start: {e}")
     yield
     scheduler_service.shutdown()
 

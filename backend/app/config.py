@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -21,6 +22,13 @@ class Settings(BaseSettings):
     BOT_ENABLED: bool = True
     AUTO_REPLY_ENABLED: bool = True
     TWEET_INTERVAL_MINUTES: int = 60
+
+    @field_validator("TWEET_INTERVAL_MINUTES")
+    @classmethod
+    def tweet_interval_must_be_positive(cls, v: int) -> int:
+        if v <= 0:
+            return 60
+        return v
 
     class Config:
         env_file = ".env"
