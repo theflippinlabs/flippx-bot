@@ -1,5 +1,4 @@
 import tweepy
-import anthropic
 import random
 import time
 import logging
@@ -47,8 +46,9 @@ class TwitterService:
         return self._client
 
     @property
-    def claude(self) -> anthropic.Anthropic:
+    def claude(self):
         if not self._claude:
+            import anthropic
             self._claude = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
         return self._claude
 
