@@ -47,7 +47,11 @@ jobs:
           DATABASE_URL: sqlite:///./test.db
         run: |
           pip install pytest httpx
-          pytest tests/ -v || echo "No tests yet"
+          if [ -d tests ] && [ "$(find tests -name 'test_*.py' | head -1)" ]; then
+            pytest tests/ -v
+          else
+            echo "No test files found, skipping"
+          fi
 
   deploy:
     needs: test
