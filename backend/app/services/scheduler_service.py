@@ -49,6 +49,14 @@ class SchedulerService:
             id="sync_analytics",
             replace_existing=True,
         )
+        # FlippX bot cycle
+        self.scheduler.add_job(
+            self._run_bot_cycle,
+            "interval",
+            minutes=settings.TWEET_INTERVAL_MINUTES,
+            id="bot_cycle",
+            replace_existing=True,
+        )
 
     def schedule_tweet(self, tweet_id: int, scheduled_at: datetime, content: str) -> str:
         job_id = f"tweet_{tweet_id}"
@@ -174,6 +182,15 @@ class SchedulerService:
             return bool(re.search(rule.keyword, text, re.IGNORECASE))
         else:
             return keyword_lower in text_lower
+
+    def _run_bot_cycle(self):
+        """Run the FlippX autonomous bot cycle."""
+        from app.services.twitter_service import twitter_service
+
+        try:
+            twitter_service.run_bot_cycle()
+        except Exception as e:
+            logger.error(f"Bot cycle failed: {e}")
 
     def _sync_analytics(self):
         from app.database import SessionLocal

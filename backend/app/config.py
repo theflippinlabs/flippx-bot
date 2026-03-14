@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     TWITTER_ACCESS_TOKEN_SECRET: str = ""
     TWITTER_BEARER_TOKEN: str = ""
 
+    # Anthropic (Claude AI)
+    ANTHROPIC_API_KEY: str = ""
+
     # App
     DATABASE_URL: str = "sqlite:///./twitter_bot.db"
     SECRET_KEY: str = "change-me-in-production"

@@ -4,6 +4,13 @@ from app.database import Base
 import enum
 
 
+class InteractionType(str, enum.Enum):
+    liked = "liked"
+    retweeted = "retweeted"
+    replied = "replied"
+    posted = "posted"
+
+
 class TweetStatus(str, enum.Enum):
     pending = "pending"
     sent = "sent"
@@ -49,4 +56,13 @@ class TweetLog(Base):
     retweets = Column(Integer, default=0)
     impressions = Column(Integer, default=0)
     replies = Column(Integer, default=0)
-    source = Column(String, default="manual")  # manual, queue, scheduled
+    source = Column(String, default="manual")  # manual, queue, scheduled, bot
+
+
+class InteractionLog(Base):
+    __tablename__ = "interaction_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tweet_id = Column(String, nullable=False, unique=True, index=True)
+    interaction_type = Column(Enum(InteractionType), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
