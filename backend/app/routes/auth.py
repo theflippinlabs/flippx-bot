@@ -28,19 +28,3 @@ def get_bot_status(api_key: str = Depends(verify_api_key)):
         "scheduler_running": scheduler_service.scheduler.running,
         "jobs": scheduler_service.get_jobs(),
     }
-
-
-@router.post("/toggle")
-def toggle_bot(api_key: str = Depends(verify_api_key)):
-    settings.BOT_ENABLED = not settings.BOT_ENABLED
-    return {"bot_enabled": settings.BOT_ENABLED}
-
-
-@router.post("/run-cycle")
-def run_cycle(api_key: str = Depends(verify_api_key)):
-    import threading
-    from app.services.twitter_service import twitter_service
-
-    thread = threading.Thread(target=twitter_service.run_bot_cycle, daemon=True)
-    thread.start()
-    return {"triggered": True}

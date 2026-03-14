@@ -8,6 +8,20 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+TWEET_PERSONA = (
+    "You are a Twitter personality. Your style: sharp, witty, conversational. "
+    "Mix humor with insight. No hashtags, no cringe, no generic motivational fluff. "
+    "Sound like a smart friend, not a LinkedIn influencer. Max 1-2 emojis. "
+    "Every tweet MUST be under 280 characters. Just output the tweet text, nothing else."
+)
+
+REPLY_PERSONA = (
+    "You are replying to a tweet. Your style: genuinely engaging, add value, match the energy. "
+    "Never sycophantic — never say 'Great point!', 'Love this!', 'So true!', or similar. "
+    "Keep replies under 200 characters. Be conversational like texting a friend. "
+    "Just output the reply text, nothing else."
+)
+
 SEARCH_QUERIES = [
     "tech", "AI", "startups", "programming", "science",
     "culture", "finance", "crypto", "design", "productivity",
@@ -146,7 +160,7 @@ class TwitterService:
                         "Be original and have your own take."
                     ),
                 }],
-                system=settings.BOT_PERSONA,
+                system=TWEET_PERSONA,
             )
             tweet_text = response.content[0].text.strip().strip('"')
             if len(tweet_text) > 280:
@@ -171,7 +185,7 @@ class TwitterService:
                         "Write ONE reply."
                     ),
                 }],
-                system=settings.REPLY_PERSONA,
+                system=REPLY_PERSONA,
             )
             reply_text = response.content[0].text.strip().strip('"')
             if len(reply_text) > 200:
@@ -365,7 +379,7 @@ class TwitterService:
 
         replies_sent = 0
         for tweet in reply_candidates:
-            if replies_sent >= settings.REPLIES_PER_RUN:
+            if replies_sent >= 3:
                 break
 
             reply_text = self.generate_reply(tweet["text"], tweet["author_username"])
@@ -389,9 +403,10 @@ class TwitterService:
         ]
         random.shuffle(like_candidates)
 
+        num_likes = random.randint(3, 5)
         likes_done = 0
         for tweet in like_candidates:
-            if likes_done >= settings.LIKES_PER_RUN:
+            if likes_done >= num_likes:
                 break
 
             if self.like_tweet(tweet["id"]):
@@ -402,7 +417,7 @@ class TwitterService:
         logger.info(f"Liked {likes_done} tweets this cycle")
 
     def _step_retweet(self, timeline: list):
-        """Retweet tweets with 50+ likes that haven't been interacted with."""
+        """Retweet 1 tweet with 50+ likes that hasn't been interacted with."""
         rt_candidates = [
             t for t in timeline
             if t["metrics"].get("like_count", 0) >= 50
@@ -414,18 +429,10 @@ class TwitterService:
             logger.info("No retweet candidates with 50+ likes")
             return
 
-        rts_done = 0
-        for tweet in rt_candidates:
-            if rts_done >= settings.RETWEETS_PER_RUN:
-                break
-            if self.retweet(tweet["id"]):
-                self.log_interaction(tweet["id"], "retweeted")
-                rts_done += 1
-                logger.info(f"Retweeted {tweet['id']} ({tweet['metrics'].get('like_count', 0)} likes)")
-                if rts_done < settings.RETWEETS_PER_RUN:
-                    self._random_delay()
-
-        logger.info(f"Retweeted {rts_done} tweets this cycle")
+        tweet = rt_candidates[0]
+        if self.retweet(tweet["id"]):
+            self.log_interaction(tweet["id"], "retweeted")
+            logger.info(f"Retweeted {tweet['id']} ({tweet['metrics'].get('like_count', 0)} likes)")
 
 
 twitter_service = TwitterService()

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from app.database import engine, Base
-from app.routes import tweets, scheduler, analytics, queue, auth, settings, activity
+from app.routes import tweets, scheduler, analytics, queue, auth
 from app.services.scheduler_service import scheduler_service
 
 logger = logging.getLogger(__name__)
@@ -42,8 +42,6 @@ app.include_router(tweets.router, prefix="/api/tweets", tags=["tweets"])
 app.include_router(scheduler.router, prefix="/api/scheduler", tags=["scheduler"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 app.include_router(queue.router, prefix="/api/queue", tags=["queue"])
-app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
-app.include_router(activity.router, prefix="/api/activity", tags=["activity"])
 
 
 @app.get("/")
