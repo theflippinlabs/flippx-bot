@@ -1,5 +1,4 @@
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from datetime import datetime
 import logging
@@ -157,7 +156,7 @@ class SchedulerService:
         db = SessionLocal()
         try:
             mentions = twitter_service.get_mentions()
-            rules = db.query(AutoReplyRule).filter(AutoReplyRule.is_active == True).all()
+            rules = db.query(AutoReplyRule).filter(AutoReplyRule.is_active.is_(True)).all()
 
             for mention in mentions:
                 for rule in rules:

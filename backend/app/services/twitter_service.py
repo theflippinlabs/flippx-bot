@@ -2,7 +2,7 @@ import tweepy
 import random
 import time
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app.config import settings
 
@@ -237,7 +237,6 @@ class TwitterService:
     def like_tweet(self, tweet_id: str) -> bool:
         """Like a tweet by ID."""
         try:
-            me = self.client.get_me()
             self.client.like(tweet_id=tweet_id, user_auth=True)
             logger.info(f"Liked tweet {tweet_id}")
             return True
@@ -300,9 +299,6 @@ class TwitterService:
 
     def run_bot_cycle(self):
         """Main bot cycle: generate tweet, reply, like, retweet."""
-        from app.database import SessionLocal
-        from app.models.tweet import TweetLog
-
         # Active hours check (7AM - 11PM)
         current_hour = datetime.now().hour
         if current_hour < 7 or current_hour >= 23:
