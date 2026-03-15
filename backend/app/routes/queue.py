@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
@@ -6,6 +8,7 @@ from app.routes.auth import verify_api_key
 from app.models.tweet import TweetQueue, TweetStatus
 from app.models.auto_reply import AutoReplyRule
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -63,6 +66,63 @@ def remove_from_queue(
     tweet.status = TweetStatus.cancelled
     db.commit()
     return {"message": "Tweet removed from queue"}
+
+
+@router.post("/generate")
+def generate_ai_tweets(
+    count: int = 10,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
+):
+    """Generate AI tweets by scanning Twitter trends and queue them."""
+    from app.services.twitter_service import twitter_service
+
+    if count < 1 or count > 50:
+        raise HTTPException(status_code=400, detail="Count must be between 1 and 50")
+
+    generated = []
+    for i in range(count):
+        topics = twitter_service.fetch_trending_topics()
+        tweet_text = twitter_service.generate_tweet(topics)
+        if not tweet_text:
+            logger.warning(f"Failed to generate tweet {i+1}/{count}")
+            continue
+
+        # Skip duplicates
+        exists = db.query(TweetQueue).filter(TweetQueue.content == tweet_text).first()
+        if exists:
+            continue
+
+        tweet = TweetQueue(content=tweet_text, priority=1)
+        db.add(tweet)
+        db.commit()
+        db.refresh(tweet)
+        generated.append({"id": tweet.id, "content": tweet.content})
+        logger.info(f"Generated and queued tweet {i+1}/{count}")
+
+    return {"generated": len(generated), "requested": count, "tweets": generated}
+
+
+@router.post("/seed")
+def seed_queue(
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
+):
+    """Seed the queue with pre-written crypto/tech tweets from the library."""
+    import random
+    from seed_tweets import TWEETS
+
+    existing = db.query(TweetQueue).filter(TweetQueue.status == "pending").count()
+    added = 0
+    for content in TWEETS:
+        exists = db.query(TweetQueue).filter(TweetQueue.content == content).first()
+        if exists:
+            continue
+        tweet = TweetQueue(content=content, priority=random.randint(0, 5))
+        db.add(tweet)
+        added += 1
+    db.commit()
+    return {"added": added, "previously_pending": existing, "total_in_library": len(TWEETS)}
 
 
 # Auto-reply rules

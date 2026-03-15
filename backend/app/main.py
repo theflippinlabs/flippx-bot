@@ -4,16 +4,48 @@ from contextlib import asynccontextmanager
 
 import logging
 
-from app.database import engine, Base
+from app.database import engine, Base, SessionLocal
 from app.routes import tweets, scheduler, analytics, queue, auth, settings, activity
 from app.services.scheduler_service import scheduler_service
 
 logger = logging.getLogger(__name__)
 
 
+def _auto_seed_queue():
+    """Seed the tweet queue on first deploy if empty."""
+    import random
+    from app.models.tweet import TweetQueue
+    try:
+        from seed_tweets import TWEETS
+    except ImportError:
+        logger.warning("seed_tweets module not found, skipping auto-seed")
+        return
+
+    db = SessionLocal()
+    try:
+        pending = db.query(TweetQueue).filter(TweetQueue.status == "pending").count()
+        if pending > 0:
+            logger.info(f"Queue already has {pending} pending tweets, skipping seed")
+            return
+
+        added = 0
+        for content in TWEETS:
+            tweet = TweetQueue(content=content, priority=random.randint(0, 5))
+            db.add(tweet)
+            added += 1
+        db.commit()
+        logger.info(f"Auto-seeded {added} tweets into queue")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Auto-seed failed: {e}")
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    _auto_seed_queue()
     try:
         scheduler_service.start()
     except Exception as e:
