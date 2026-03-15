@@ -1,4 +1,4 @@
-# Twitter Bot — Control Panel 
+# Twitter Bot — Control Panel
 
 Un bot Twitter avec panneau de contrôle React et backend FastAPI.
 
