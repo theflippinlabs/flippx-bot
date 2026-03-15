@@ -10,8 +10,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Twitter API v2
+    # Twitter API v2 (Consumer Key = API Key)
     TWITTER_API_KEY: str = ""
+    TWITTER_CONSUMER_KEY: str = ""  # Alternative name for API Key
     TWITTER_API_SECRET: str = ""
     TWITTER_ACCESS_TOKEN: str = ""
     TWITTER_ACCESS_TOKEN_SECRET: str = ""

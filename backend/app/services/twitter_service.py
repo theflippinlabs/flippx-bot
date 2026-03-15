@@ -22,20 +22,28 @@ class TwitterService:
     @property
     def client(self) -> tweepy.Client:
         if not self._client:
+            # Support both TWITTER_API_KEY and TWITTER_CONSUMER_KEY
+            consumer_key = settings.TWITTER_API_KEY or settings.TWITTER_CONSUMER_KEY
+
             if not all([
-                settings.TWITTER_API_KEY,
+                consumer_key,
                 settings.TWITTER_API_SECRET,
                 settings.TWITTER_ACCESS_TOKEN,
                 settings.TWITTER_ACCESS_TOKEN_SECRET,
             ]):
-                logger.error(
-                    "Twitter credentials missing! Set TWITTER_API_KEY, "
-                    "TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, "
-                    "TWITTER_ACCESS_TOKEN_SECRET env vars"
-                )
+                missing = []
+                if not consumer_key:
+                    missing.append("TWITTER_API_KEY (or TWITTER_CONSUMER_KEY)")
+                if not settings.TWITTER_API_SECRET:
+                    missing.append("TWITTER_API_SECRET")
+                if not settings.TWITTER_ACCESS_TOKEN:
+                    missing.append("TWITTER_ACCESS_TOKEN")
+                if not settings.TWITTER_ACCESS_TOKEN_SECRET:
+                    missing.append("TWITTER_ACCESS_TOKEN_SECRET")
+                logger.error(f"Twitter credentials missing: {', '.join(missing)}")
 
             self._client = tweepy.Client(
-                consumer_key=settings.TWITTER_API_KEY,
+                consumer_key=consumer_key,
                 consumer_secret=settings.TWITTER_API_SECRET,
                 access_token=settings.TWITTER_ACCESS_TOKEN,
                 access_token_secret=settings.TWITTER_ACCESS_TOKEN_SECRET,
