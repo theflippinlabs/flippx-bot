@@ -22,14 +22,34 @@ class TwitterService:
     @property
     def client(self) -> tweepy.Client:
         if not self._client:
+            if not all([
+                settings.TWITTER_API_KEY,
+                settings.TWITTER_API_SECRET,
+                settings.TWITTER_ACCESS_TOKEN,
+                settings.TWITTER_ACCESS_TOKEN_SECRET,
+            ]):
+                logger.error(
+                    "Twitter credentials missing! Set TWITTER_API_KEY, "
+                    "TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, "
+                    "TWITTER_ACCESS_TOKEN_SECRET env vars"
+                )
+
             self._client = tweepy.Client(
-                bearer_token=settings.TWITTER_BEARER_TOKEN,
                 consumer_key=settings.TWITTER_API_KEY,
                 consumer_secret=settings.TWITTER_API_SECRET,
                 access_token=settings.TWITTER_ACCESS_TOKEN,
                 access_token_secret=settings.TWITTER_ACCESS_TOKEN_SECRET,
+                wait_on_rate_limit=True,
             )
         return self._client
+
+    @property
+    def bearer_client(self) -> tweepy.Client:
+        """Separate client for read-only endpoints that use Bearer Token."""
+        return tweepy.Client(
+            bearer_token=settings.TWITTER_BEARER_TOKEN,
+            wait_on_rate_limit=True,
+        )
 
     @property
     def claude(self):
@@ -77,7 +97,7 @@ class TwitterService:
 
     def get_tweet_metrics(self, tweet_id: str) -> dict:
         try:
-            tweet = self.client.get_tweet(
+            tweet = self.bearer_client.get_tweet(
                 tweet_id,
                 tweet_fields=["public_metrics", "created_at"],
             )
@@ -113,10 +133,9 @@ class TwitterService:
         topics = []
         query = random.choice(SEARCH_QUERIES)
         try:
-            results = self.client.search_recent_tweets(
+            results = self.bearer_client.search_recent_tweets(
                 query=query,
-                max_results=20,
-                sort_order="relevancy",
+                max_results=10,
                 tweet_fields=["public_metrics", "text"],
             )
             if results.data:
@@ -187,10 +206,9 @@ class TwitterService:
         """Fetch recent popular tweets from the timeline for engagement."""
         try:
             query = random.choice(SEARCH_QUERIES) + " -is:retweet -is:reply lang:en"
-            results = self.client.search_recent_tweets(
+            results = self.bearer_client.search_recent_tweets(
                 query=query,
-                max_results=30,
-                sort_order="relevancy",
+                max_results=10,
                 tweet_fields=["public_metrics", "created_at", "author_id", "text"],
                 expansions=["author_id"],
                 user_fields=["public_metrics", "username"],
