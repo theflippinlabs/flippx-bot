@@ -42,7 +42,7 @@ class TwitterService:
 
     def post_tweet(self, content: str) -> dict:
         try:
-            response = self.client.create_tweet(text=content)
+            response = self.client.create_tweet(text=content, user_auth=True)
             tweet_id = response.data["id"]
             logger.info(f"Tweet posted: {tweet_id}")
             return {"success": True, "tweet_id": tweet_id}
@@ -55,6 +55,7 @@ class TwitterService:
             response = self.client.create_tweet(
                 text=content,
                 in_reply_to_tweet_id=tweet_id,
+                user_auth=True,
             )
             logger.info(f"Replied to {tweet_id}: {response.data['id']}")
             return {"success": True, "tweet_id": response.data["id"]}
@@ -64,7 +65,7 @@ class TwitterService:
 
     def get_mentions(self, since_id: str = None) -> list:
         try:
-            me = self.client.get_me()
+            me = self.client.get_me(user_auth=True)
             params = {"expansions": ["author_id"], "tweet_fields": ["created_at", "text"]}
             if since_id:
                 params["since_id"] = since_id
@@ -89,7 +90,7 @@ class TwitterService:
 
     def get_me(self) -> dict:
         try:
-            me = self.client.get_me(user_fields=["public_metrics", "profile_image_url"])
+            me = self.client.get_me(user_fields=["public_metrics", "profile_image_url"], user_auth=True)
             metrics = me.data.public_metrics or {}
             return {
                 "id": str(me.data.id),
