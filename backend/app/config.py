@@ -1,8 +1,15 @@
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
     # Twitter API v2
     TWITTER_API_KEY: str = ""
     TWITTER_API_SECRET: str = ""
@@ -46,9 +53,6 @@ class Settings(BaseSettings):
         if v <= 0:
             return 60
         return v
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()
