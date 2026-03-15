@@ -48,8 +48,10 @@ def run_cycle(api_key: str = Depends(verify_api_key)):
 
 @router.get("/test-twitter")
 def test_twitter_auth(api_key: str = Depends(verify_api_key)):
-    """Diagnostic endpoint to test Twitter API credentials."""
+    """Diagnostic endpoint — shows exact Twitter error codes and messages."""
+    import tweepy
     from app.services.twitter_service import twitter_service
+
     results = {
         "credentials_set": {
             "TWITTER_API_KEY": bool(settings.TWITTER_API_KEY),
@@ -58,19 +60,57 @@ def test_twitter_auth(api_key: str = Depends(verify_api_key)):
             "TWITTER_ACCESS_TOKEN_SECRET": bool(settings.TWITTER_ACCESS_TOKEN_SECRET),
             "TWITTER_BEARER_TOKEN": bool(settings.TWITTER_BEARER_TOKEN),
         },
+        "credential_prefixes": {
+            "API_KEY": settings.TWITTER_API_KEY[:8] + "..." if settings.TWITTER_API_KEY else None,
+            "ACCESS_TOKEN": settings.TWITTER_ACCESS_TOKEN[:8] + "..." if settings.TWITTER_ACCESS_TOKEN else None,
+        },
         "oauth1_test": None,
         "bearer_test": None,
+        "checklist": [],
     }
 
-    # Test OAuth 1.0a (user context)
+    # Test OAuth 1.0a (user context) — this is what 401s
     try:
         me = twitter_service.client.get_me(user_auth=True)
         results["oauth1_test"] = {
             "success": True,
             "username": me.data.username if me.data else None,
         }
+    except tweepy.Unauthorized as e:
+        results["oauth1_test"] = {
+            "success": False,
+            "http_status": 401,
+            "error_type": "Unauthorized",
+            "raw_error": str(e),
+            "api_errors": e.api_errors if hasattr(e, "api_errors") else None,
+            "api_codes": e.api_codes if hasattr(e, "api_codes") else None,
+            "api_messages": e.api_messages if hasattr(e, "api_messages") else None,
+            "response_text": e.response.text if hasattr(e, "response") and e.response else None,
+        }
+        results["checklist"] = [
+            "1. Go to console.x.com > your App > Settings > User authentication settings",
+            "2. Ensure App permissions = 'Read and Write' (not just 'Read')",
+            "3. After changing permissions: go to Keys and tokens tab",
+            "4. REGENERATE both Access Token AND Access Token Secret",
+            "5. Update the new tokens in Railway env vars",
+            "6. Redeploy the backend",
+            "7. Make sure the app is attached to a Project (not standalone)",
+        ]
+    except tweepy.Forbidden as e:
+        results["oauth1_test"] = {
+            "success": False,
+            "http_status": 403,
+            "error_type": "Forbidden",
+            "raw_error": str(e),
+            "api_errors": e.api_errors if hasattr(e, "api_errors") else None,
+            "response_text": e.response.text if hasattr(e, "response") and e.response else None,
+        }
     except Exception as e:
-        results["oauth1_test"] = {"success": False, "error": str(e)}
+        results["oauth1_test"] = {
+            "success": False,
+            "error_type": type(e).__name__,
+            "raw_error": str(e),
+        }
 
     # Test Bearer Token (app context)
     try:
@@ -81,7 +121,25 @@ def test_twitter_auth(api_key: str = Depends(verify_api_key)):
             "success": True,
             "tweets_found": len(search.data) if search.data else 0,
         }
+    except tweepy.Unauthorized as e:
+        results["bearer_test"] = {
+            "success": False,
+            "http_status": 401,
+            "raw_error": str(e),
+            "response_text": e.response.text if hasattr(e, "response") and e.response else None,
+        }
+    except tweepy.Forbidden as e:
+        results["bearer_test"] = {
+            "success": False,
+            "http_status": 403,
+            "raw_error": str(e),
+            "response_text": e.response.text if hasattr(e, "response") and e.response else None,
+        }
     except Exception as e:
-        results["bearer_test"] = {"success": False, "error": str(e)}
+        results["bearer_test"] = {
+            "success": False,
+            "error_type": type(e).__name__,
+            "raw_error": str(e),
+        }
 
     return results
