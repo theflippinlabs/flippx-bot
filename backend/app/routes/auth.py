@@ -46,6 +46,29 @@ def run_cycle(api_key: str = Depends(verify_api_key)):
     return {"triggered": True}
 
 
+@router.get("/debug-env")
+def debug_env(api_key: str = Depends(verify_api_key)):
+    """Show all env var names and which Twitter vars pydantic loaded."""
+    import os
+    all_env_names = sorted(os.environ.keys())
+    twitter_vars = {k: f"{os.environ[k][:12]}... (len={len(os.environ[k])})"
+                    for k in all_env_names if "TWITTER" in k or "API" in k or "KEY" in k}
+    return {
+        "total_env_vars": len(all_env_names),
+        "all_env_names": all_env_names,
+        "twitter_and_api_vars_from_os": twitter_vars,
+        "pydantic_settings_loaded": {
+            "TWITTER_API_KEY": f"len={len(settings.TWITTER_API_KEY)}, val={settings.TWITTER_API_KEY[:8]}..." if settings.TWITTER_API_KEY else "EMPTY",
+            "TWITTER_API_SECRET": f"len={len(settings.TWITTER_API_SECRET)}" if settings.TWITTER_API_SECRET else "EMPTY",
+            "TWITTER_ACCESS_TOKEN": f"len={len(settings.TWITTER_ACCESS_TOKEN)}, val={settings.TWITTER_ACCESS_TOKEN[:8]}..." if settings.TWITTER_ACCESS_TOKEN else "EMPTY",
+            "TWITTER_ACCESS_TOKEN_SECRET": f"len={len(settings.TWITTER_ACCESS_TOKEN_SECRET)}" if settings.TWITTER_ACCESS_TOKEN_SECRET else "EMPTY",
+            "TWITTER_BEARER_TOKEN": f"len={len(settings.TWITTER_BEARER_TOKEN)}" if settings.TWITTER_BEARER_TOKEN else "EMPTY",
+            "API_KEY": f"len={len(settings.API_KEY)}" if settings.API_KEY else "EMPTY",
+            "DATABASE_URL": f"{settings.DATABASE_URL[:30]}...",
+        },
+    }
+
+
 @router.get("/test-twitter")
 def test_twitter_auth(api_key: str = Depends(verify_api_key)):
     """Diagnostic endpoint — shows exact Twitter error codes and messages."""

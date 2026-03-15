@@ -42,8 +42,37 @@ def _auto_seed_queue():
         db.close()
 
 
+def _log_env_debug():
+    """Log all env var names and Twitter/API credential status on startup."""
+    import os
+    from app.config import settings
+
+    all_vars = sorted(os.environ.keys())
+    logger.info(f"=== ALL ENV VARS ({len(all_vars)}) ===")
+    for var in all_vars:
+        # Show value prefix for known credential vars, just name for others
+        if var.startswith("TWITTER_") or var in (
+            "API_KEY", "ANTHROPIC_API_KEY", "DATABASE_URL", "SECRET_KEY",
+        ):
+            val = os.environ[var]
+            logger.info(f"  {var} = {val[:12]}... (len={len(val)})")
+        else:
+            logger.info(f"  {var}")
+
+    logger.info("=== SETTINGS VALUES (after pydantic load) ===")
+    logger.info(f"  TWITTER_API_KEY = {'SET' if settings.TWITTER_API_KEY else 'EMPTY'} (len={len(settings.TWITTER_API_KEY)})")
+    logger.info(f"  TWITTER_API_SECRET = {'SET' if settings.TWITTER_API_SECRET else 'EMPTY'} (len={len(settings.TWITTER_API_SECRET)})")
+    logger.info(f"  TWITTER_ACCESS_TOKEN = {'SET' if settings.TWITTER_ACCESS_TOKEN else 'EMPTY'} (len={len(settings.TWITTER_ACCESS_TOKEN)})")
+    logger.info(f"  TWITTER_ACCESS_TOKEN_SECRET = {'SET' if settings.TWITTER_ACCESS_TOKEN_SECRET else 'EMPTY'} (len={len(settings.TWITTER_ACCESS_TOKEN_SECRET)})")
+    logger.info(f"  TWITTER_BEARER_TOKEN = {'SET' if settings.TWITTER_BEARER_TOKEN else 'EMPTY'} (len={len(settings.TWITTER_BEARER_TOKEN)})")
+    logger.info(f"  ANTHROPIC_API_KEY = {'SET' if settings.ANTHROPIC_API_KEY else 'EMPTY'}")
+    logger.info(f"  DATABASE_URL = {settings.DATABASE_URL[:30]}...")
+    logger.info(f"  API_KEY = {'SET' if settings.API_KEY else 'EMPTY'}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _log_env_debug()
     Base.metadata.create_all(bind=engine)
     _auto_seed_queue()
     try:
