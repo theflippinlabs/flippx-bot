@@ -95,10 +95,26 @@ def _log_env_debug():
     logger.info(f"  API_KEY = {'SET' if settings.API_KEY else 'EMPTY'}")
 
 
+def _migrate_db():
+    """Add missing columns to existing tables (create_all won't do this)."""
+    from sqlalchemy import text, inspect
+    with engine.connect() as conn:
+        inspector = inspect(engine)
+        if "bot_state" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("bot_state")]
+            if "tweet_interval_minutes" not in columns:
+                conn.execute(text(
+                    "ALTER TABLE bot_state ADD COLUMN tweet_interval_minutes INTEGER NOT NULL DEFAULT 15"
+                ))
+                conn.commit()
+                logger.info("Migrated bot_state: added tweet_interval_minutes column")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _log_env_debug()
     Base.metadata.create_all(bind=engine)
+    _migrate_db()
     _refresh_queue()
     try:
         scheduler_service.start()
