@@ -7,6 +7,9 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def verify_api_key(api_key: str = Depends(api_key_header)):
+    # Skip auth if API_KEY was never configured (still default placeholder)
+    if settings.API_KEY in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""):
+        return api_key or "no-key"
     if not api_key or api_key != settings.API_KEY:
         raise HTTPException(status_code=403, detail="Invalid or missing API key")
     return api_key
