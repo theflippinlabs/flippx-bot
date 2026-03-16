@@ -10,13 +10,14 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def verify_api_key(api_key: str = Depends(api_key_header)):
+    # Strip whitespace/newlines that env var managers sometimes add
+    expected_key = settings.API_KEY.strip() if settings.API_KEY else ""
+    received_key = api_key.strip() if api_key else ""
     # Skip auth if API_KEY was never configured (still default placeholder)
-    if settings.API_KEY in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""):
+    if expected_key in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""):
         return api_key or "no-key"
-    received = f"{api_key[:8]}...(len={len(api_key)})" if api_key else "NONE"
-    expected = f"{settings.API_KEY[:8]}...(len={len(settings.API_KEY)})"
-    if not api_key or api_key != settings.API_KEY:
-        logger.warning(f"API key mismatch: received={received}, expected={expected}")
+    if not received_key or received_key != expected_key:
+        logger.warning(f"API key mismatch: received_len={len(received_key)}, expected_len={len(expected_key)}")
         raise HTTPException(status_code=403, detail="Invalid or missing API key")
     return api_key
 
@@ -60,26 +61,11 @@ def run_cycle(api_key: str = Depends(verify_api_key)):
 @router.get("/debug-auth")
 def debug_auth():
     """Unauthenticated debug endpoint to diagnose API key issues."""
-    from fastapi import Request
+    key = settings.API_KEY.strip() if settings.API_KEY else ""
     return {
-        "backend_api_key_len": len(settings.API_KEY) if settings.API_KEY else 0,
-        "backend_api_key_full_repr": repr(settings.API_KEY) if settings.API_KEY else "EMPTY",
-        "backend_api_key_bytes": [ord(c) for c in settings.API_KEY] if settings.API_KEY else [],
-        "is_placeholder": settings.API_KEY in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""),
-    }
-
-
-@router.get("/debug-auth-test")
-def debug_auth_test(api_key: str = Depends(api_key_header)):
-    """Test what key is received in the header."""
-    return {
-        "received_key_repr": repr(api_key) if api_key else "NONE",
-        "received_key_len": len(api_key) if api_key else 0,
-        "received_key_bytes": [ord(c) for c in api_key] if api_key else [],
-        "expected_key_repr": repr(settings.API_KEY),
-        "expected_key_len": len(settings.API_KEY),
-        "match": api_key == settings.API_KEY if api_key else False,
-        "stripped_match": api_key.strip() == settings.API_KEY.strip() if api_key else False,
+        "backend_api_key_len": len(key),
+        "backend_api_key_prefix": key[:8] + "..." if len(key) > 8 else key,
+        "is_placeholder": key in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""),
     }
 
 
