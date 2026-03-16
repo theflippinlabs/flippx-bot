@@ -68,10 +68,17 @@ def get_activity(
         from datetime import datetime, timezone
 
         today = datetime.now(timezone.utc).date()
-        today_activity = [
-            a for a in activity
-            if a["timestamp"] and datetime.fromisoformat(a["timestamp"]).date() == today
-        ]
+        today_activity = []
+        for a in activity:
+            ts = a["timestamp"]
+            if not ts:
+                continue
+            try:
+                dt = datetime.fromisoformat(str(ts))
+                if dt.date() == today:
+                    today_activity.append(a)
+            except (TypeError, ValueError):
+                continue
 
         stats = {
             "posts_today": sum(1 for a in today_activity if a["type"] == "posted"),

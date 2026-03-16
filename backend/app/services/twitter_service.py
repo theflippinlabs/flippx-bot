@@ -137,7 +137,7 @@ class TwitterService:
             }
             if since_id:
                 params["since_id"] = since_id
-            mentions = self.client.get_users_mentions(me.data.id, **params)
+            mentions = self.bearer_client.get_users_mentions(me.data.id, **params)
             return mentions.data or [], mentions.includes if mentions.includes else {}
         except tweepy.TweepyException as e:
             logger.error(f"Failed to get mentions: {e}")
