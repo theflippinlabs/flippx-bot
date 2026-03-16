@@ -68,7 +68,7 @@ def remove_from_queue(
     return {"message": "Tweet removed from queue"}
 
 
-@router.delete("/tweets/clear")
+@router.post("/clear-pending")
 def clear_pending(
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key),
