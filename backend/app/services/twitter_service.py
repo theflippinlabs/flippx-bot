@@ -17,10 +17,35 @@ SEARCH_QUERIES = [
 ]
 
 
+TOPIC_CATEGORIES = [
+    "Bitcoin price action and macro outlook",
+    "Ethereum ecosystem and upgrades",
+    "Solana speed, DeFi, and memecoins",
+    "AI agents and autonomous systems in crypto",
+    "DeFi yield strategies and protocol wars",
+    "Layer 2 scaling wars (Arbitrum vs Optimism vs Base vs zkSync)",
+    "Crypto regulation and government moves",
+    "NFT market evolution and digital art",
+    "Real World Assets (RWA) tokenization",
+    "Stablecoin dominance and CBDC threats",
+    "Crypto VC funding and startup landscape",
+    "AI x Crypto intersection projects",
+    "Memecoins and degen culture",
+    "On-chain analytics and whale watching",
+    "Tech industry layoffs, pivots, and AI hiring",
+    "GPU shortage and AI infrastructure",
+    "Open source AI vs closed models debate",
+    "Web3 gaming and metaverse",
+    "Cross-chain bridges and interoperability",
+    "Crypto exchange competition and drama",
+]
+
+
 class TwitterService:
     def __init__(self):
         self._client = None
         self._claude = None
+        self._last_topics: list[str] = []  # Track recent topics to avoid repeats
 
     @property
     def client(self) -> tweepy.Client:
@@ -202,12 +227,40 @@ class TwitterService:
         logger.info(f"Total trending topics collected: {len(topics)}")
         return topics
 
+    def _pick_topic_category(self) -> str:
+        """Pick a topic category that wasn't used recently."""
+        available = [t for t in TOPIC_CATEGORIES if t not in self._last_topics]
+        if not available:
+            self._last_topics.clear()
+            available = TOPIC_CATEGORIES
+        chosen = random.choice(available)
+        self._last_topics.append(chosen)
+        # Keep only last 5 to ensure variety
+        if len(self._last_topics) > 5:
+            self._last_topics = self._last_topics[-5:]
+        return chosen
+
     def generate_tweet(self, topics: list[str]) -> str | None:
         """Use Claude to generate a full 280-char tweet with emojis, hashtags, and tags."""
+        topic_category = self._pick_topic_category()
+
         if not topics:
-            topic_context = "Current crypto and tech trends: Bitcoin, Ethereum, Solana, AI agents, DeFi, Web3, Layer 2s, memecoins"
+            trend_context = "No specific trending tweets available — use your knowledge of current crypto/tech landscape."
         else:
-            topic_context = "\n".join(topics[:15])
+            trend_context = "\n".join(f"- {t}" for t in topics[:12])
+
+        # Pick a random tweet format to force variety
+        formats = [
+            "Hot take / contrarian opinion that challenges conventional wisdom",
+            "Alpha call — share an insight most people are missing",
+            "Bold prediction about what happens next in this space",
+            "Question that sparks debate (e.g. 'Is X actually better than Y?')",
+            "'Unpopular opinion:' format with a spicy take",
+            "Comparison between two projects, technologies, or strategies",
+            "Breaking down why something everyone ignores actually matters",
+            "Market observation that connects dots others don't see",
+        ]
+        chosen_format = random.choice(formats)
 
         try:
             response = self.claude.messages.create(
@@ -216,26 +269,39 @@ class TwitterService:
                 messages=[{
                     "role": "user",
                     "content": (
-                        f"Here are trending crypto/tech tweets right now:\n\n{topic_context}\n\n"
-                        "Write ONE original tweet that will go viral. Requirements:\n"
-                        "- USE ALL 280 CHARACTERS. Aim for 250-280 chars. Short tweets get no reach.\n"
-                        "- Include 3-5 emojis spread throughout the tweet.\n"
-                        "- Include 2-3 relevant hashtags like #Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH.\n"
-                        "- Tag 1-2 relevant influential accounts IF discussing their projects "
-                        "(e.g. @VitalikButerin for ETH, @elonmusk for tech/AI, @CZ_Binance for Binance, "
-                        "@brian_armstrong for Coinbase, @jessepollak for Base, @aaboronkov for crypto analysis). "
-                        "Only tag when genuinely relevant to the topic.\n"
-                        "- Make it a hot take, alpha call, or conversation starter that people want to reply to.\n"
-                        "- Don't copy the tweets above — use them to identify what's trending and craft your own take.\n"
-                        "- Output ONLY the tweet text. No quotes, no explanation."
+                        f"TOPIC AREA: {topic_category}\n"
+                        f"FORMAT: {chosen_format}\n\n"
+                        f"Trending tweets for context:\n{trend_context}\n\n"
+                        "Write ONE original tweet. Follow these rules EXACTLY:\n\n"
+                        "LENGTH: The tweet MUST be between 250 and 280 characters (including spaces, "
+                        "emojis, hashtags, @mentions). Count carefully. If under 250, add more substance.\n\n"
+                        "EMOJIS: Place exactly 2-3 emojis INSIDE the sentence flow, not bunched together. "
+                        "Good: 'The 🔥 thing about $SOL is...' Bad: 'Solana is great 🔥🚀💎'\n\n"
+                        "HASHTAGS: End with exactly 2-3 hashtags on the same line. Pick from: "
+                        "#Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH #BTC #Altcoins #Tech #Trading "
+                        "#Blockchain #NFTs #Layer2 #Airdrop — choose what fits the topic.\n\n"
+                        "TOKENS & ACCOUNTS: Mention specific $tokens ($BTC $ETH $SOL $AVAX $ARB $OP $LINK $MATIC $DOGE) "
+                        "or @accounts (@VitalikButerin @elonmusk @CZ_Binance @brian_armstrong @jessepollak "
+                        "@pmarca @naval) when they're relevant to your point. Don't force it.\n\n"
+                        "TONE: Confident insider who knows things. Not hype-bro, not academic. "
+                        "Like texting alpha to your smartest friend.\n\n"
+                        "Output ONLY the tweet text. No quotes. No 'Here's a tweet:'. Nothing but the tweet itself."
                     ),
                 }],
                 system=settings.BOT_PERSONA,
             )
             tweet_text = response.content[0].text.strip().strip('"')
+            # Strip any preamble like "Here's..." or "Tweet:" that models sometimes add
+            for prefix in ["Here's a tweet:", "Here's my tweet:", "Tweet:", "Here you go:"]:
+                if tweet_text.lower().startswith(prefix.lower()):
+                    tweet_text = tweet_text[len(prefix):].strip()
             if len(tweet_text) > 280:
                 tweet_text = tweet_text[:277] + "..."
-            logger.info(f"Generated tweet ({len(tweet_text)} chars): {tweet_text[:80]}...")
+            logger.info(
+                f"Generated tweet ({len(tweet_text)} chars) "
+                f"[topic={topic_category[:30]}] [format={chosen_format[:30]}]: "
+                f"{tweet_text[:80]}..."
+            )
             return tweet_text
         except Exception as e:
             logger.error(f"Failed to generate tweet with Claude: {e}")
