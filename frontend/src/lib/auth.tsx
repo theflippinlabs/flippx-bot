@@ -9,7 +9,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 const SESSION_KEY = 'flippx_auth_session'
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || ''
+const ADMIN_PASSWORD = (import.meta.env.VITE_ADMIN_PASSWORD || '').trim()
 
 function hashPassword(password: string): string {
   // Simple hash for session token — not crypto-grade, just prevents storing plaintext
