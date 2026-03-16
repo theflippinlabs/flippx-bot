@@ -1,3 +1,5 @@
+import random
+
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
@@ -106,6 +108,23 @@ def generate_tweets(
         "message": f"Generating {payload.count} tweets in background",
         "current_pending": pending_count,
     }
+
+
+@router.post("/shuffle")
+def shuffle_queue(
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
+):
+    """Randomize priorities of all pending tweets to mix old and new."""
+    pending = db.query(TweetQueue).filter(
+        TweetQueue.status == TweetStatus.pending
+    ).all()
+    priorities = list(range(len(pending)))
+    random.shuffle(priorities)
+    for tweet, prio in zip(pending, priorities):
+        tweet.priority = prio
+    db.commit()
+    return {"message": f"Shuffled {len(pending)} tweets", "total": len(pending)}
 
 
 # Auto-reply rules
