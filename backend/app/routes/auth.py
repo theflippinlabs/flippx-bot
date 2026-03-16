@@ -69,6 +69,56 @@ def debug_auth():
     }
 
 
+@router.get("/debug-generate")
+def debug_generate(api_key: str = Depends(verify_api_key)):
+    """Test tweet generation and return raw result for debugging."""
+    from app.services.twitter_service import twitter_service
+    import traceback
+    try:
+        topics = twitter_service.fetch_trending_topics()
+        topic_info = f"{len(topics)} topics" if topics else "no topics"
+
+        # Try raw Claude call
+        from app.config import settings as cfg
+        raw_result = None
+        clean_result = None
+        error = None
+        try:
+            response = twitter_service.claude.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=400,
+                messages=[{"role": "user", "content": "Write a single tweet about AI in 200 characters. Just the tweet text, nothing else."}],
+            )
+            raw_result = response.content[0].text
+            clean_result = twitter_service._clean_tweet(raw_result)
+        except Exception as e:
+            error = f"{type(e).__name__}: {e}"
+
+        # Try full generate_tweet
+        full_result = None
+        full_error = None
+        try:
+            full_result = twitter_service.generate_tweet(topics)
+        except Exception as e:
+            full_error = traceback.format_exc()
+
+        return {
+            "topics": topic_info,
+            "anthropic_key_set": bool(cfg.ANTHROPIC_API_KEY),
+            "anthropic_key_len": len(cfg.ANTHROPIC_API_KEY) if cfg.ANTHROPIC_API_KEY else 0,
+            "raw_claude_result": raw_result,
+            "raw_len": len(raw_result) if raw_result else 0,
+            "clean_result": clean_result,
+            "clean_len": len(clean_result) if clean_result else 0,
+            "claude_error": error,
+            "full_generate_result": full_result,
+            "full_generate_len": len(full_result) if full_result else 0,
+            "full_generate_error": full_error,
+        }
+    except Exception as e:
+        return {"error": traceback.format_exc()}
+
+
 @router.get("/debug-env")
 def debug_env(api_key: str = Depends(verify_api_key)):
     """Show all env var names and which Twitter vars pydantic loaded."""
