@@ -301,7 +301,7 @@ class TwitterService:
                 tweet_text = tweet_text[:277] + "..."
             logger.info(
                 f"Generated tweet ({len(tweet_text)} chars) "
-                f"[topic={topic_category[:30]}] [format={chosen_format[:30]}]: "
+                f"[topic={topic_category[:30]}] [style={chosen_style[:30]}]: "
                 f"{tweet_text[:80]}..."
             )
             return tweet_text
