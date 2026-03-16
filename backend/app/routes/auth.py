@@ -124,8 +124,15 @@ def debug_env(api_key: str = Depends(verify_api_key)):
     """Show all env var names and which Twitter vars pydantic loaded."""
     import os
     all_env_names = sorted(os.environ.keys())
-    twitter_vars = {k: f"{os.environ[k][:12]}... (len={len(os.environ[k])})"
-                    for k in all_env_names if "TWITTER" in k or "API" in k or "KEY" in k}
+    twitter_vars = {}
+    for k in all_env_names:
+        if "TWITTER" in k or "API" in k or "KEY" in k:
+            val = os.environ[k]
+            # Show more prefix for ANTHROPIC key to verify it matches funded account
+            if "ANTHROPIC" in k:
+                twitter_vars[k] = f"{val[:20]}... (len={len(val)})"
+            else:
+                twitter_vars[k] = f"{val[:12]}... (len={len(val)})"
     return {
         "total_env_vars": len(all_env_names),
         "all_env_names": all_env_names,
