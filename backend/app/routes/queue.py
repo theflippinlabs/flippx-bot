@@ -1,6 +1,4 @@
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from app.database import get_db
@@ -8,8 +6,28 @@ from app.routes.auth import verify_api_key
 from app.models.tweet import TweetQueue, TweetStatus
 from app.models.auto_reply import AutoReplyRule
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _generate_tweets_to_queue(count: int):
+    """Background task: generate AI tweets and insert into queue."""
+    import logging
+    from app.database import SessionLocal
+    from app.services.twitter_service import twitter_service
+
+    logger = logging.getLogger(__name__)
+    db = SessionLocal()
+    try:
+        tweets = twitter_service.generate_tweet_batch(count)
+        for text in tweets:
+            db.add(TweetQueue(content=text, priority=0))
+        db.commit()
+        logger.info(f"Generated {len(tweets)} tweets into queue")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to generate tweets to queue: {e}")
+    finally:
+        db.close()
 
 
 class QueueTweetCreate(BaseModel):
@@ -52,23 +70,6 @@ def list_queue(
     return {"tweets": tweets, "total": total}
 
 
-@router.get("/library")
-def list_library(
-    status: str = None,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key),
-):
-    """List all tweets in the queue (all statuses) for the Library view."""
-    query = db.query(TweetQueue)
-    if status:
-        query = query.filter(TweetQueue.status == status)
-    total = query.count()
-    tweets = query.order_by(TweetQueue.created_at.desc()).offset(skip).limit(limit).all()
-    return {"tweets": tweets, "total": total}
-
-
 @router.delete("/tweets/{tweet_id}")
 def remove_from_queue(
     tweet_id: int,
@@ -78,85 +79,33 @@ def remove_from_queue(
     tweet = db.query(TweetQueue).filter(TweetQueue.id == tweet_id).first()
     if not tweet:
         raise HTTPException(status_code=404, detail="Tweet not found in queue")
-    if tweet.status == TweetStatus.sent:
-        raise HTTPException(status_code=400, detail="Cannot delete already-posted tweets")
-    db.delete(tweet)
+    if tweet.status != TweetStatus.pending:
+        raise HTTPException(status_code=400, detail="Can only cancel pending tweets")
+    tweet.status = TweetStatus.cancelled
     db.commit()
-    return {"message": "Tweet deleted from queue"}
+    return {"message": "Tweet removed from queue"}
 
 
-@router.post("/clear-pending")
-def clear_pending(
-    db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key),
-):
-    """Delete all pending tweets from the queue."""
-    count = db.query(TweetQueue).filter(TweetQueue.status == TweetStatus.pending).delete()
-    db.commit()
-    return {"deleted": count}
+class GenerateRequest(BaseModel):
+    count: int = Field(default=100, ge=1, le=500)
 
 
 @router.post("/generate")
-def generate_ai_tweets(
-    count: int = 10,
+def generate_tweets(
+    payload: GenerateRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key),
 ):
-    """Generate AI tweets by scanning Twitter trends and queue them."""
-    from app.services.twitter_service import twitter_service
-
-    if count < 1 or count > 100:
-        raise HTTPException(status_code=400, detail="Count must be between 1 and 100")
-
-    # Fetch trending topics once, refresh every 10 tweets for variety
-    topics = twitter_service.fetch_trending_topics()
-
-    generated = []
-    for i in range(count):
-        # Refresh trends every 10 tweets for topic diversity
-        if i > 0 and i % 10 == 0:
-            topics = twitter_service.fetch_trending_topics()
-
-        tweet_text = twitter_service.generate_tweet(topics)
-        if not tweet_text:
-            logger.warning(f"Failed to generate tweet {i+1}/{count}")
-            continue
-
-        # Skip duplicates
-        exists = db.query(TweetQueue).filter(TweetQueue.content == tweet_text).first()
-        if exists:
-            continue
-
-        tweet = TweetQueue(content=tweet_text, priority=1)
-        db.add(tweet)
-        db.commit()
-        db.refresh(tweet)
-        generated.append({"id": tweet.id, "content": tweet.content})
-        logger.info(f"Generated and queued tweet {i+1}/{count}")
-
-    return {"generated": len(generated), "requested": count, "tweets": generated}
-
-
-@router.post("/seed")
-def seed_queue(
-    db: Session = Depends(get_db),
-    api_key: str = Depends(verify_api_key),
-):
-    """Seed the queue with pre-written crypto/tech tweets from the library."""
-    import random
-    from seed_tweets import TWEETS
-
-    existing = db.query(TweetQueue).filter(TweetQueue.status == "pending").count()
-    added = 0
-    for content in TWEETS:
-        exists = db.query(TweetQueue).filter(TweetQueue.content == content).first()
-        if exists:
-            continue
-        tweet = TweetQueue(content=content, priority=random.randint(0, 5))
-        db.add(tweet)
-        added += 1
-    db.commit()
-    return {"added": added, "previously_pending": existing, "total_in_library": len(TWEETS)}
+    """Generate AI tweets and add them to the queue in the background."""
+    pending_count = db.query(TweetQueue).filter(
+        TweetQueue.status == TweetStatus.pending
+    ).count()
+    background_tasks.add_task(_generate_tweets_to_queue, payload.count)
+    return {
+        "message": f"Generating {payload.count} tweets in background",
+        "current_pending": pending_count,
+    }
 
 
 # Auto-reply rules

@@ -2,7 +2,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
 from datetime import datetime
 import logging
-import random
 import re
 
 from app.config import settings
@@ -25,13 +24,11 @@ class SchedulerService:
             self.scheduler.shutdown()
 
     def _add_system_jobs(self):
-        from app.services.bot_state import get_tweet_interval_minutes
-        queue_interval = get_tweet_interval_minutes()
-        # Process queue at DB-configured interval
+        # Process queue every 5 minutes
         self.scheduler.add_job(
             self._process_queue,
             "interval",
-            minutes=queue_interval,
+            minutes=5,
             id="process_queue",
             replace_existing=True,
         )
@@ -59,12 +56,12 @@ class SchedulerService:
             id="bot_cycle",
             replace_existing=True,
         )
-        # Auto-generate tweets every 60 minutes to keep queue full
+        # Auto-refill queue when below 20 pending tweets
         self.scheduler.add_job(
-            self._auto_generate_queue,
+            self._refill_queue,
             "interval",
-            minutes=60,
-            id="auto_generate_queue",
+            minutes=30,
+            id="refill_queue",
             replace_existing=True,
         )
 
@@ -118,8 +115,7 @@ class SchedulerService:
             db.close()
 
     def _process_queue(self):
-        from app.services.bot_state import is_bot_enabled
-        if not is_bot_enabled():
+        if not settings.BOT_ENABLED:
             return
 
         from app.database import SessionLocal
@@ -157,60 +153,32 @@ class SchedulerService:
             db.close()
 
     def _check_mentions(self):
-        from app.services.bot_state import is_auto_reply_enabled
-        if not is_auto_reply_enabled():
+        if not settings.AUTO_REPLY_ENABLED:
             return
 
+        from app.database import SessionLocal
+        from app.models.auto_reply import AutoReplyRule
         from app.services.twitter_service import twitter_service
-        import time
+        from datetime import timezone
 
+        db = SessionLocal()
         try:
-            mentions, includes = twitter_service.get_mentions()
-            if not mentions:
-                return
+            mentions = twitter_service.get_mentions()
+            rules = db.query(AutoReplyRule).filter(AutoReplyRule.is_active.is_(True)).all()
 
-            # Build author lookup from includes
-            users_by_id = {}
-            if includes and "users" in includes:
-                for user in includes["users"]:
-                    users_by_id[str(user.id)] = user
-
-            replied_count = 0
             for mention in mentions:
-                tweet_id = str(mention.id)
-
-                # Skip if already replied
-                if twitter_service.is_already_interacted(tweet_id):
-                    continue
-
-                # Get author username
-                author = users_by_id.get(str(mention.author_id))
-                author_username = author.username if author else "someone"
-
-                # Generate AI reply using Anthropic
-                reply_text = twitter_service.generate_mention_reply(
-                    mention.text, author_username
-                )
-                if not reply_text:
-                    continue
-
-                result = twitter_service.reply_to_tweet(reply_text, tweet_id)
-                if result["success"]:
-                    twitter_service.log_interaction(tweet_id, "replied")
-                    replied_count += 1
-                    logger.info(f"Auto-replied to @{author_username} mention ({tweet_id})")
-
-                    # Human-like delay between replies
-                    time.sleep(random.uniform(3, 8))
-
-                # Cap at 5 auto-replies per check
-                if replied_count >= 5:
-                    break
-
-            if replied_count > 0:
-                logger.info(f"Auto-replied to {replied_count} mentions this check")
-        except Exception as e:
-            logger.error(f"Mention check failed: {e}")
+                for rule in rules:
+                    if self._matches_rule(mention.text, rule):
+                        result = twitter_service.reply_to_tweet(
+                            rule.reply_template, str(mention.id)
+                        )
+                        if result["success"]:
+                            rule.trigger_count += 1
+                            rule.last_triggered = datetime.now(timezone.utc)
+                            db.commit()
+                        break
+        finally:
+            db.close()
 
     def _matches_rule(self, text: str, rule) -> bool:
         text_lower = text.lower()
@@ -222,10 +190,18 @@ class SchedulerService:
         else:
             return keyword_lower in text_lower
 
-    def _auto_generate_queue(self):
-        """Auto-generate 50 AI tweets when queue drops below 20 pending."""
-        from app.services.bot_state import is_bot_enabled
-        if not is_bot_enabled():
+    def _run_bot_cycle(self):
+        """Run the FlippX autonomous bot cycle."""
+        from app.services.twitter_service import twitter_service
+
+        try:
+            twitter_service.run_bot_cycle()
+        except Exception as e:
+            logger.error(f"Bot cycle failed: {e}")
+
+    def _refill_queue(self):
+        """Auto-generate tweets when queue drops below 20 pending."""
+        if not settings.BOT_ENABLED:
             return
 
         from app.database import SessionLocal
@@ -239,45 +215,21 @@ class SchedulerService:
             ).count()
 
             if pending_count >= 20:
-                logger.info(f"Queue has {pending_count} pending tweets (>= 20), skipping")
+                logger.debug(f"Queue has {pending_count} pending tweets, no refill needed")
                 return
 
-            logger.info(f"Queue low ({pending_count} pending), generating 50 fresh tweets with current trends...")
-            topics = twitter_service.fetch_trending_topics()
-            generated = 0
-            attempts = 0
-            while generated < 50 and attempts < 80:
-                attempts += 1
-                if generated > 0 and generated % 10 == 0:
-                    topics = twitter_service.fetch_trending_topics()
-
-                tweet_text = twitter_service.generate_tweet(topics)
-                if not tweet_text:
-                    continue
-
-                exists = db.query(TweetQueue).filter(TweetQueue.content == tweet_text).first()
-                if exists:
-                    continue
-
-                tweet = TweetQueue(content=tweet_text, priority=1)
-                db.add(tweet)
-                db.commit()
-                generated += 1
-
-            logger.info(f"Auto-generated {generated}/50 tweets (had {pending_count}, now {pending_count + generated})")
+            needed = 100 - pending_count
+            logger.info(f"Queue low ({pending_count} pending), generating {needed} tweets")
+            tweets = twitter_service.generate_tweet_batch(needed)
+            for text in tweets:
+                db.add(TweetQueue(content=text, priority=0))
+            db.commit()
+            logger.info(f"Refilled queue with {len(tweets)} tweets")
         except Exception as e:
-            logger.error(f"Auto-generate queue failed: {e}")
+            db.rollback()
+            logger.error(f"Failed to refill queue: {e}")
         finally:
             db.close()
-
-    def _run_bot_cycle(self):
-        """Run the FlippX autonomous bot cycle."""
-        from app.services.twitter_service import twitter_service
-
-        try:
-            twitter_service.run_bot_cycle()
-        except Exception as e:
-            logger.error(f"Bot cycle failed: {e}")
 
     def _sync_analytics(self):
         from app.database import SessionLocal
