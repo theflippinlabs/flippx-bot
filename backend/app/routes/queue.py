@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from app.database import get_db
@@ -7,6 +7,27 @@ from app.models.tweet import TweetQueue, TweetStatus
 from app.models.auto_reply import AutoReplyRule
 
 router = APIRouter()
+
+
+def _generate_tweets_to_queue(count: int):
+    """Background task: generate AI tweets and insert into queue."""
+    import logging
+    from app.database import SessionLocal
+    from app.services.twitter_service import twitter_service
+
+    logger = logging.getLogger(__name__)
+    db = SessionLocal()
+    try:
+        tweets = twitter_service.generate_tweet_batch(count)
+        for text in tweets:
+            db.add(TweetQueue(content=text, priority=0))
+        db.commit()
+        logger.info(f"Generated {len(tweets)} tweets into queue")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to generate tweets to queue: {e}")
+    finally:
+        db.close()
 
 
 class QueueTweetCreate(BaseModel):
@@ -63,6 +84,28 @@ def remove_from_queue(
     tweet.status = TweetStatus.cancelled
     db.commit()
     return {"message": "Tweet removed from queue"}
+
+
+class GenerateRequest(BaseModel):
+    count: int = Field(default=100, ge=1, le=500)
+
+
+@router.post("/generate")
+def generate_tweets(
+    payload: GenerateRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
+):
+    """Generate AI tweets and add them to the queue in the background."""
+    pending_count = db.query(TweetQueue).filter(
+        TweetQueue.status == TweetStatus.pending
+    ).count()
+    background_tasks.add_task(_generate_tweets_to_queue, payload.count)
+    return {
+        "message": f"Generating {payload.count} tweets in background",
+        "current_pending": pending_count,
+    }
 
 
 # Auto-reply rules

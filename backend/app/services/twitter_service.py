@@ -171,6 +171,60 @@ class TwitterService:
             logger.error(f"Failed to generate tweet with Claude: {e}")
             return None
 
+    def generate_tweet_batch(self, count: int = 10) -> list[str]:
+        """Generate a batch of unique AI tweets for the queue."""
+        topics = self.fetch_trending_topics()
+        if not topics:
+            topic_context = "current internet culture and tech trends"
+        else:
+            topic_context = "\n".join(topics[:10])
+
+        tweets = []
+        # Generate in batches of 10 to reduce API calls
+        remaining = count
+        while remaining > 0:
+            batch_size = min(remaining, 10)
+            try:
+                response = self.claude.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=4000,
+                    messages=[{
+                        "role": "user",
+                        "content": (
+                            f"Here are some trending tweets for inspiration:\n\n{topic_context}\n\n"
+                            f"Write exactly {batch_size} original tweets, each on its own line. "
+                            "Number them 1. 2. 3. etc. "
+                            "Don't copy or reference the tweets above directly — "
+                            "use them only to understand what topics are hot right now. "
+                            "Each tweet must be unique in topic and angle. "
+                            "Mix styles: hot takes, observations, jokes, questions, mini-stories. "
+                            "Every tweet MUST be under 280 characters."
+                        ),
+                    }],
+                    system=TWEET_PERSONA,
+                )
+                raw = response.content[0].text.strip()
+                for line in raw.split("\n"):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Strip numbering like "1. " or "1) "
+                    import re
+                    cleaned = re.sub(r"^\d+[\.\)]\s*", "", line).strip().strip('"')
+                    if cleaned and len(cleaned) <= 280:
+                        tweets.append(cleaned)
+                remaining -= batch_size
+                logger.info(f"Generated batch, total tweets so far: {len(tweets)}")
+            except Exception as e:
+                logger.error(f"Failed to generate tweet batch: {e}")
+                break
+
+            # Brief delay between batches to avoid rate limits
+            if remaining > 0:
+                time.sleep(1)
+
+        return tweets[:count]
+
     def generate_reply(self, tweet_text: str, author_username: str) -> str | None:
         """Use Claude to generate an intelligent reply to a tweet."""
         try:

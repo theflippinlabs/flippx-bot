@@ -56,6 +56,14 @@ class SchedulerService:
             id="bot_cycle",
             replace_existing=True,
         )
+        # Auto-refill queue when below 20 pending tweets
+        self.scheduler.add_job(
+            self._refill_queue,
+            "interval",
+            minutes=30,
+            id="refill_queue",
+            replace_existing=True,
+        )
 
     def schedule_tweet(self, tweet_id: int, scheduled_at: datetime, content: str) -> str:
         job_id = f"tweet_{tweet_id}"
@@ -190,6 +198,38 @@ class SchedulerService:
             twitter_service.run_bot_cycle()
         except Exception as e:
             logger.error(f"Bot cycle failed: {e}")
+
+    def _refill_queue(self):
+        """Auto-generate tweets when queue drops below 20 pending."""
+        if not settings.BOT_ENABLED:
+            return
+
+        from app.database import SessionLocal
+        from app.models.tweet import TweetQueue, TweetStatus
+        from app.services.twitter_service import twitter_service
+
+        db = SessionLocal()
+        try:
+            pending_count = db.query(TweetQueue).filter(
+                TweetQueue.status == TweetStatus.pending
+            ).count()
+
+            if pending_count >= 20:
+                logger.debug(f"Queue has {pending_count} pending tweets, no refill needed")
+                return
+
+            needed = 100 - pending_count
+            logger.info(f"Queue low ({pending_count} pending), generating {needed} tweets")
+            tweets = twitter_service.generate_tweet_batch(needed)
+            for text in tweets:
+                db.add(TweetQueue(content=text, priority=0))
+            db.commit()
+            logger.info(f"Refilled queue with {len(tweets)} tweets")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to refill queue: {e}")
+        finally:
+            db.close()
 
     def _sync_analytics(self):
         from app.database import SessionLocal
