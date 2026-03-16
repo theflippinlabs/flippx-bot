@@ -68,6 +68,17 @@ def remove_from_queue(
     return {"message": "Tweet removed from queue"}
 
 
+@router.delete("/tweets/clear")
+def clear_pending(
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
+):
+    """Delete all pending tweets from the queue."""
+    count = db.query(TweetQueue).filter(TweetQueue.status == TweetStatus.pending).delete()
+    db.commit()
+    return {"deleted": count}
+
+
 @router.post("/generate")
 def generate_ai_tweets(
     count: int = 10,
@@ -77,12 +88,18 @@ def generate_ai_tweets(
     """Generate AI tweets by scanning Twitter trends and queue them."""
     from app.services.twitter_service import twitter_service
 
-    if count < 1 or count > 50:
-        raise HTTPException(status_code=400, detail="Count must be between 1 and 50")
+    if count < 1 or count > 100:
+        raise HTTPException(status_code=400, detail="Count must be between 1 and 100")
+
+    # Fetch trending topics once, refresh every 10 tweets for variety
+    topics = twitter_service.fetch_trending_topics()
 
     generated = []
     for i in range(count):
-        topics = twitter_service.fetch_trending_topics()
+        # Refresh trends every 10 tweets for topic diversity
+        if i > 0 and i % 10 == 0:
+            topics = twitter_service.fetch_trending_topics()
+
         tweet_text = twitter_service.generate_tweet(topics)
         if not tweet_text:
             logger.warning(f"Failed to generate tweet {i+1}/{count}")
