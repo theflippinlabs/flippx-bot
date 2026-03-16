@@ -1,221 +1,216 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Sliders, Save, Clock } from 'lucide-react'
+import { Save, Power, MessageSquare, Heart, Repeat, Clock, Bot, Shuffle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getSettings, updateSettings, getPersona, updatePersona } from '../lib/api'
+import { getSettings, updateSettings } from '../lib/api'
 
-const INTERVAL_OPTIONS = [5, 15, 30, 45, 60]
+interface BotSettings {
+  bot_enabled: boolean
+  tweets_per_day: number
+  tweet_interval_minutes: number
+  active_hours_start: number
+  active_hours_end: number
+  auto_reply_enabled: boolean
+  max_replies_per_cycle: number
+  max_likes_per_cycle: number
+  max_retweets_per_cycle: number
+  min_followers_to_reply: number
+  min_likes_to_retweet: number
+  random_skip_chance: number
+  min_delay_seconds: number
+  max_delay_seconds: number
+  auto_refill_enabled: boolean
+  refill_threshold: number
+  refill_count: number
+  tweet_persona: string
+  reply_persona: string
+}
 
 export default function SettingsPage() {
-  return (
-    <div className="p-4 md:p-8 space-y-5 max-w-3xl mx-auto">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
-          <SettingsIcon className="w-5 h-5 text-sky-400" />
-          Settings
-        </h1>
-        <p className="text-slate-400 text-sm mt-0.5">Configure your FlippX bot</p>
-      </div>
-
-      <PersonaEditor />
-      <BotParameters />
-    </div>
-  )
-}
-
-function PersonaEditor() {
   const queryClient = useQueryClient()
-  const { data: persona } = useQuery({ queryKey: ['persona'], queryFn: getPersona })
-  const [botPersona, setBotPersona] = useState('')
-  const [replyPersona, setReplyPersona] = useState('')
-
-  useEffect(() => {
-    if (persona) {
-      setBotPersona(persona.bot_persona ?? '')
-      setReplyPersona(persona.reply_persona ?? '')
-    }
-  }, [persona])
-
-  const mutation = useMutation({
-    mutationFn: updatePersona,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['persona'] })
-      toast.success('Persona updated!')
-    },
-    onError: () => toast.error('Failed to update persona'),
+  const { data: settings, isLoading } = useQuery<BotSettings>({
+    queryKey: ['settings'],
+    queryFn: getSettings,
   })
 
-  const handleSave = () => {
-    mutation.mutate({
-      bot_persona: botPersona,
-      reply_persona: replyPersona,
-    })
-  }
-
-  return (
-    <div className="card space-y-4">
-      <h2 className="font-semibold text-sm flex items-center gap-2">
-        <User className="w-4 h-4 text-sky-400" />
-        Bot Persona
-      </h2>
-
-      <div className="space-y-3">
-        <div>
-          <label className="text-xs text-slate-400 block mb-1.5">Tweet Persona</label>
-          <textarea
-            className="input resize-none h-28 text-sm"
-            value={botPersona}
-            onChange={e => setBotPersona(e.target.value)}
-            placeholder="Describe how the bot should tweet..."
-          />
-        </div>
-
-        <div>
-          <label className="text-xs text-slate-400 block mb-1.5">Reply Persona</label>
-          <textarea
-            className="input resize-none h-28 text-sm"
-            value={replyPersona}
-            onChange={e => setReplyPersona(e.target.value)}
-            placeholder="Describe how the bot should reply..."
-          />
-        </div>
-
-        <button
-          onClick={handleSave}
-          disabled={mutation.isPending}
-          className="btn-primary flex items-center gap-2 text-sm py-2 px-4"
-        >
-          <Save className="w-3.5 h-3.5" />
-          {mutation.isPending ? 'Saving...' : 'Save Persona'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function BotParameters() {
-  const queryClient = useQueryClient()
-  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings })
-  const [interval, setInterval_] = useState(15)
-  const [replies, setReplies] = useState(3)
-  const [likes, setLikes] = useState(5)
-  const [retweets, setRetweets] = useState(1)
+  const [form, setForm] = useState<BotSettings | null>(null)
 
   useEffect(() => {
-    if (settings) {
-      setInterval_(settings.tweet_interval_minutes ?? 15)
-      setReplies(settings.replies_per_run ?? 3)
-      setLikes(settings.likes_per_run ?? 5)
-      setRetweets(settings.retweets_per_run ?? 1)
-    }
+    if (settings) setForm({ ...settings })
   }, [settings])
 
   const mutation = useMutation({
-    mutationFn: updateSettings,
+    mutationFn: (data: Partial<BotSettings>) => updateSettings(data),
     onSuccess: () => {
+      toast.success('Settings saved')
       queryClient.invalidateQueries({ queryKey: ['settings'] })
-      toast.success('Settings updated!')
+      queryClient.invalidateQueries({ queryKey: ['bot-status'] })
     },
-    onError: () => toast.error('Failed to update settings'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
-  const handleSave = () => {
-    mutation.mutate({
-      tweet_interval_minutes: interval,
-      replies_per_run: replies,
-      likes_per_run: likes,
-      retweets_per_run: retweets,
-    })
+  if (isLoading || !form) return <div className="p-8 text-slate-400">Chargement...</div>
+
+  const update = (key: keyof BotSettings, value: unknown) => {
+    setForm(prev => prev ? { ...prev, [key]: value } : prev)
+  }
+
+  const save = () => {
+    if (!form) return
+    mutation.mutate(form)
   }
 
   return (
-    <div className="card space-y-4">
-      <h2 className="font-semibold text-sm flex items-center gap-2">
-        <Sliders className="w-4 h-4 text-sky-400" />
-        Bot Parameters
-      </h2>
-
-      <div className="space-y-3">
+    <div className="p-8 space-y-6 max-w-4xl">
+      <div className="flex items-center justify-between">
         <div>
-          <label className="text-xs text-slate-400 mb-1.5 flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            Tweet Posting Interval
-          </label>
-          <div className="flex gap-2">
-            {INTERVAL_OPTIONS.map(opt => (
-              <button
-                key={opt}
-                onClick={() => setInterval_(opt)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  interval === opt
-                    ? 'bg-sky-500 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                {opt}m
-              </button>
-            ))}
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <p className="text-slate-400 mt-1">Configure le comportement du bot</p>
+        </div>
+        <button className="btn-primary flex items-center gap-2" onClick={save} disabled={mutation.isPending}>
+          <Save className="w-4 h-4" />
+          {mutation.isPending ? 'Saving...' : 'Sauvegarder'}
+        </button>
+      </div>
+
+      {/* Bot On/Off */}
+      <div className="card">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Power className={`w-5 h-5 ${form.bot_enabled ? 'text-emerald-400' : 'text-red-400'}`} />
+            <div>
+              <h2 className="font-semibold">Bot {form.bot_enabled ? 'Actif' : 'Désactivé'}</h2>
+              <p className="text-sm text-slate-400">Active/désactive toutes les actions automatiques</p>
+            </div>
+          </div>
+          <button
+            onClick={() => update('bot_enabled', !form.bot_enabled)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${form.bot_enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${form.bot_enabled ? 'left-6' : 'left-0.5'}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Posting */}
+      <div className="card space-y-4">
+        <h2 className="font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-sky-400" /> Posting</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Tweets par jour (max)</label>
+            <input type="number" className="input" min={1} max={50} value={form.tweets_per_day} onChange={e => update('tweets_per_day', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Intervalle min (minutes)</label>
+            <input type="number" className="input" min={10} max={1440} value={form.tweet_interval_minutes} onChange={e => update('tweet_interval_minutes', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Heure début (0-23)</label>
+            <input type="number" className="input" min={0} max={23} value={form.active_hours_start} onChange={e => update('active_hours_start', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Heure fin (0-23)</label>
+            <input type="number" className="input" min={0} max={23} value={form.active_hours_end} onChange={e => update('active_hours_end', Number(e.target.value))} />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <NumberField
-          label="Replies per run"
-          value={replies}
-          onChange={setReplies}
-          min={0}
-          max={20}
-        />
-        <NumberField
-          label="Likes per run"
-          value={likes}
-          onChange={setLikes}
-          min={0}
-          max={50}
-        />
-        <NumberField
-          label="Retweets per run"
-          value={retweets}
-          onChange={setRetweets}
-          min={0}
-          max={10}
-        />
+      {/* Engagement */}
+      <div className="card space-y-4">
+        <h2 className="font-semibold flex items-center gap-2"><Heart className="w-4 h-4 text-pink-400" /> Engagement</h2>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-slate-400" />
+            <span className="text-sm">Auto-reply</span>
+          </div>
+          <button
+            onClick={() => update('auto_reply_enabled', !form.auto_reply_enabled)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${form.auto_reply_enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${form.auto_reply_enabled ? 'left-6' : 'left-0.5'}`} />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Replies / cycle</label>
+            <input type="number" className="input" min={0} max={20} value={form.max_replies_per_cycle} onChange={e => update('max_replies_per_cycle', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Likes / cycle</label>
+            <input type="number" className="input" min={0} max={20} value={form.max_likes_per_cycle} onChange={e => update('max_likes_per_cycle', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Retweets / cycle</label>
+            <input type="number" className="input" min={0} max={10} value={form.max_retweets_per_cycle} onChange={e => update('max_retweets_per_cycle', Number(e.target.value))} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Min followers pour reply</label>
+            <input type="number" className="input" min={0} value={form.min_followers_to_reply} onChange={e => update('min_followers_to_reply', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Min likes pour RT</label>
+            <input type="number" className="input" min={0} value={form.min_likes_to_retweet} onChange={e => update('min_likes_to_retweet', Number(e.target.value))} />
+          </div>
+        </div>
       </div>
 
-      <button
-        onClick={handleSave}
-        disabled={mutation.isPending}
-        className="btn-primary flex items-center gap-2 text-sm py-2 px-4"
-      >
-        <Save className="w-3.5 h-3.5" />
-        {mutation.isPending ? 'Saving...' : 'Save Settings'}
-      </button>
-    </div>
-  )
-}
+      {/* Human-like behavior */}
+      <div className="card space-y-4">
+        <h2 className="font-semibold flex items-center gap-2"><Shuffle className="w-4 h-4 text-yellow-400" /> Comportement humain</h2>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Skip aléatoire (%)</label>
+            <input type="number" className="input" min={0} max={100} value={form.random_skip_chance} onChange={e => update('random_skip_chance', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Délai min (sec)</label>
+            <input type="number" className="input" min={0} max={60} value={form.min_delay_seconds} onChange={e => update('min_delay_seconds', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Délai max (sec)</label>
+            <input type="number" className="input" min={1} max={120} value={form.max_delay_seconds} onChange={e => update('max_delay_seconds', Number(e.target.value))} />
+          </div>
+        </div>
+      </div>
 
-function NumberField({ label, value, onChange, min, max }: {
-  label: string
-  value: number
-  onChange: (v: number) => void
-  min: number
-  max: number
-}) {
-  return (
-    <div>
-      <label className="text-xs text-slate-400 block mb-1.5">{label}</label>
-      <input
-        type="number"
-        className="input text-sm"
-        value={value}
-        onChange={e => {
-          const v = parseInt(e.target.value) || min
-          onChange(Math.max(min, Math.min(max, v)))
-        }}
-        min={min}
-        max={max}
-      />
+      {/* Queue */}
+      <div className="card space-y-4">
+        <h2 className="font-semibold flex items-center gap-2"><Repeat className="w-4 h-4 text-purple-400" /> Queue auto-refill</h2>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm">Auto-refill activé</span>
+          <button
+            onClick={() => update('auto_refill_enabled', !form.auto_refill_enabled)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${form.auto_refill_enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${form.auto_refill_enabled ? 'left-6' : 'left-0.5'}`} />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Seuil de refill</label>
+            <input type="number" className="input" min={1} max={100} value={form.refill_threshold} onChange={e => update('refill_threshold', Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Nombre à générer</label>
+            <input type="number" className="input" min={10} max={500} value={form.refill_count} onChange={e => update('refill_count', Number(e.target.value))} />
+          </div>
+        </div>
+      </div>
+
+      {/* Persona */}
+      <div className="card space-y-4">
+        <h2 className="font-semibold flex items-center gap-2"><Bot className="w-4 h-4 text-emerald-400" /> Persona</h2>
+        <div>
+          <label className="text-xs text-slate-400 block mb-1">Persona des tweets</label>
+          <textarea className="input resize-none h-24" value={form.tweet_persona} onChange={e => update('tweet_persona', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-slate-400 block mb-1">Persona des réponses</label>
+          <textarea className="input resize-none h-24" value={form.reply_persona} onChange={e => update('reply_persona', e.target.value)} />
+        </div>
+      </div>
     </div>
   )
 }

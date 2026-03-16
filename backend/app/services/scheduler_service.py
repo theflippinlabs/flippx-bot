@@ -24,11 +24,11 @@ class SchedulerService:
             self.scheduler.shutdown()
 
     def _add_system_jobs(self):
-        # Process queue every 5 minutes
+        # Process queue every 30 minutes (daily limit controls actual output)
         self.scheduler.add_job(
             self._process_queue,
             "interval",
-            minutes=5,
+            minutes=30,
             id="process_queue",
             replace_existing=True,
         )
@@ -114,10 +114,18 @@ class SchedulerService:
         finally:
             db.close()
 
-    def _process_queue(self):
-        if not settings.BOT_ENABLED:
-            return
+    def _get_bot_settings(self, db):
+        """Load bot settings from DB, creating defaults if needed."""
+        from app.models.bot_settings import BotSettings
+        s = db.query(BotSettings).first()
+        if not s:
+            s = BotSettings(id=1)
+            db.add(s)
+            db.commit()
+            db.refresh(s)
+        return s
 
+    def _process_queue(self):
         from app.database import SessionLocal
         from app.models.tweet import TweetQueue, TweetStatus, TweetLog
         from app.services.twitter_service import twitter_service
@@ -125,6 +133,32 @@ class SchedulerService:
 
         db = SessionLocal()
         try:
+            bot_settings = self._get_bot_settings(db)
+            if not bot_settings.bot_enabled:
+                return
+
+            # Check active hours
+            now = datetime.now()
+            if not (bot_settings.active_hours_start <= now.hour < bot_settings.active_hours_end):
+                logger.debug(f"Outside active hours ({bot_settings.active_hours_start}-{bot_settings.active_hours_end}), skipping")
+                return
+
+            # Check daily limit
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_count = db.query(TweetQueue).filter(
+                TweetQueue.status == TweetStatus.sent,
+                TweetQueue.sent_at >= today_start,
+            ).count()
+            if today_count >= bot_settings.tweets_per_day:
+                logger.debug(f"Daily limit reached ({today_count}/{bot_settings.tweets_per_day})")
+                return
+
+            # Random skip for human-like behavior
+            import random
+            if random.randint(1, 100) <= bot_settings.random_skip_chance:
+                logger.debug("Random skip triggered")
+                return
+
             next_tweet = (
                 db.query(TweetQueue)
                 .filter(TweetQueue.status == TweetStatus.pending)
@@ -200,25 +234,26 @@ class SchedulerService:
             logger.error(f"Bot cycle failed: {e}")
 
     def _refill_queue(self):
-        """Auto-generate tweets when queue drops below 20 pending."""
-        if not settings.BOT_ENABLED:
-            return
-
+        """Auto-generate tweets when queue drops below threshold."""
         from app.database import SessionLocal
         from app.models.tweet import TweetQueue, TweetStatus
         from app.services.twitter_service import twitter_service
 
         db = SessionLocal()
         try:
+            bot_settings = self._get_bot_settings(db)
+            if not bot_settings.bot_enabled or not bot_settings.auto_refill_enabled:
+                return
+
             pending_count = db.query(TweetQueue).filter(
                 TweetQueue.status == TweetStatus.pending
             ).count()
 
-            if pending_count >= 20:
+            if pending_count >= bot_settings.refill_threshold:
                 logger.debug(f"Queue has {pending_count} pending tweets, no refill needed")
                 return
 
-            needed = 100 - pending_count
+            needed = bot_settings.refill_count - pending_count
             logger.info(f"Queue low ({pending_count} pending), generating {needed} tweets")
             tweets = twitter_service.generate_tweet_batch(needed)
             for text in tweets:
