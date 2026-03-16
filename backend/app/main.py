@@ -11,35 +11,60 @@ from app.services.scheduler_service import scheduler_service
 logger = logging.getLogger(__name__)
 
 
-def _auto_seed_queue():
-    """Seed the tweet queue on first deploy if empty."""
-    import random
-    from app.models.tweet import TweetQueue
-    try:
-        from seed_tweets import TWEETS
-    except ImportError:
-        logger.warning("seed_tweets module not found, skipping auto-seed")
-        return
+def _refresh_queue():
+    """Clear old pending tweets and generate 100 fresh ones on deploy."""
+    import threading
 
-    db = SessionLocal()
-    try:
-        pending = db.query(TweetQueue).filter(TweetQueue.status == "pending").count()
-        if pending > 0:
-            logger.info(f"Queue already has {pending} pending tweets, skipping seed")
-            return
+    def _do_refresh():
+        from app.models.tweet import TweetQueue, TweetStatus
+        from app.services.twitter_service import twitter_service
 
-        added = 0
-        for content in TWEETS:
-            tweet = TweetQueue(content=content, priority=random.randint(0, 5))
-            db.add(tweet)
-            added += 1
-        db.commit()
-        logger.info(f"Auto-seeded {added} tweets into queue")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Auto-seed failed: {e}")
-    finally:
-        db.close()
+        db = SessionLocal()
+        try:
+            # Clear all existing pending tweets
+            deleted = db.query(TweetQueue).filter(
+                TweetQueue.status == TweetStatus.pending
+            ).delete()
+            db.commit()
+            logger.info(f"Cleared {deleted} old pending tweets from queue")
+
+            # Generate 100 fresh tweets with mixed styles
+            topics = twitter_service.fetch_trending_topics()
+            generated = 0
+            for i in range(100):
+                # Refresh trends every 10 for diversity
+                if i > 0 and i % 10 == 0:
+                    topics = twitter_service.fetch_trending_topics()
+
+                tweet_text = twitter_service.generate_tweet(topics)
+                if not tweet_text:
+                    continue
+
+                # Skip duplicates
+                exists = db.query(TweetQueue).filter(
+                    TweetQueue.content == tweet_text
+                ).first()
+                if exists:
+                    continue
+
+                tweet = TweetQueue(content=tweet_text, priority=1)
+                db.add(tweet)
+                db.commit()
+                generated += 1
+                if generated % 10 == 0:
+                    logger.info(f"Generated {generated}/100 fresh tweets...")
+
+            logger.info(f"Queue refresh complete: generated {generated} fresh tweets")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Queue refresh failed: {e}")
+        finally:
+            db.close()
+
+    # Run in background thread so it doesn't block startup/health checks
+    thread = threading.Thread(target=_do_refresh, daemon=True)
+    thread.start()
+    logger.info("Started queue refresh in background thread")
 
 
 def _log_env_debug():
@@ -74,7 +99,7 @@ def _log_env_debug():
 async def lifespan(app: FastAPI):
     _log_env_debug()
     Base.metadata.create_all(bind=engine)
-    _auto_seed_queue()
+    _refresh_queue()
     try:
         scheduler_service.start()
     except Exception as e:
@@ -114,4 +139,4 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "version": "1.1.0"}
+    return {"status": "healthy", "version": "1.2.0"}

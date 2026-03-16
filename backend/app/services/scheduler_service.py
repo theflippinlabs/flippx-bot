@@ -25,11 +25,11 @@ class SchedulerService:
             self.scheduler.shutdown()
 
     def _add_system_jobs(self):
-        # Process queue every 5 minutes
+        # Process queue every 15 minutes
         self.scheduler.add_job(
             self._process_queue,
             "interval",
-            minutes=5,
+            minutes=15,
             id="process_queue",
             replace_existing=True,
         )
@@ -221,22 +221,32 @@ class SchedulerService:
             return keyword_lower in text_lower
 
     def _auto_generate_queue(self):
-        """Auto-generate 10 AI tweets from trending topics and add to queue."""
+        """Auto-generate AI tweets to keep at least 50 pending in queue."""
         from app.services.bot_state import is_bot_enabled
         if not is_bot_enabled():
             return
 
         from app.database import SessionLocal
-        from app.models.tweet import TweetQueue
+        from app.models.tweet import TweetQueue, TweetStatus
         from app.services.twitter_service import twitter_service
 
         db = SessionLocal()
         try:
+            pending_count = db.query(TweetQueue).filter(
+                TweetQueue.status == TweetStatus.pending
+            ).count()
+
+            if pending_count >= 50:
+                logger.info(f"Queue has {pending_count} pending tweets, skipping auto-generate")
+                return
+
+            # Generate enough to reach 50, minimum 10
+            to_generate = max(10, 50 - pending_count)
             topics = twitter_service.fetch_trending_topics()
             generated = 0
-            for i in range(10):
-                # Refresh trends halfway for topic diversity
-                if i == 5:
+            for i in range(to_generate):
+                # Refresh trends every 10 tweets for diversity
+                if i > 0 and i % 10 == 0:
                     topics = twitter_service.fetch_trending_topics()
 
                 tweet_text = twitter_service.generate_tweet(topics)
@@ -253,7 +263,7 @@ class SchedulerService:
                 db.commit()
                 generated += 1
 
-            logger.info(f"Auto-generated {generated} tweets and added to queue")
+            logger.info(f"Auto-generated {generated} tweets (had {pending_count} pending, target 50+)")
         except Exception as e:
             logger.error(f"Auto-generate queue failed: {e}")
         finally:

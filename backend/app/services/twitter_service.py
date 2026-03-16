@@ -262,6 +262,16 @@ class TwitterService:
         ]
         chosen_style = random.choice(styles)
 
+        # Mix of short punchy and long detailed tweets
+        length_modes = [
+            ("SHORT", "80-140 characters. Punchy one-liner. Sharp and memorable. Like a mic drop."),
+            ("SHORT", "80-140 characters. Punchy one-liner. Sharp and memorable. Like a mic drop."),
+            ("MEDIUM", "140-200 characters. Quick take with one strong point and a kicker."),
+            ("LONG", "240-280 characters. Detailed take with reasoning, analogy, or multi-part observation."),
+            ("LONG", "240-280 characters. Detailed take with reasoning, analogy, or multi-part observation."),
+        ]
+        length_mode, length_instruction = random.choice(length_modes)
+
         try:
             response = self.claude.messages.create(
                 model="claude-sonnet-4-20250514",
@@ -270,15 +280,16 @@ class TwitterService:
                     "role": "user",
                     "content": (
                         f"TOPIC: {topic_category}\n"
-                        f"STYLE: {chosen_style}\n\n"
+                        f"STYLE: {chosen_style}\n"
+                        f"LENGTH MODE: {length_mode}\n\n"
                         f"Trending tweets for context:\n{trend_context}\n\n"
                         "Write ONE tweet as @theflippinlabs. STRICT requirements:\n\n"
-                        "1. LENGTH: 250-280 characters total (including emojis, hashtags, everything). "
-                        "Count carefully.\n\n"
-                        "2. EMOJIS: Exactly 2-3 emojis placed naturally MID-SENTENCE. "
+                        f"1. LENGTH: {length_instruction} "
+                        "Count carefully. Do NOT exceed 280 characters total.\n\n"
+                        "2. EMOJIS: 1-3 emojis placed naturally MID-SENTENCE. "
                         "GOOD: 'The 🔥 thing about $SOL is that...' or 'Everyone's sleeping on this 👀 while...' "
                         "BAD: 'Solana is amazing 🔥🚀💎' (never cluster at end).\n\n"
-                        "3. HASHTAGS: End with 2-3 hashtags. Choose from: "
+                        "3. HASHTAGS: End with 1-3 hashtags. Choose from: "
                         "#Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH #BTC #Tech #Trading #Blockchain #Layer2\n\n"
                         "4. SPECIFICS: Use $tokens ($BTC $ETH $SOL $AVAX $ARB $OP $LINK) or "
                         "@accounts (@VitalikButerin @elonmusk @CZ_Binance @brian_armstrong @jessepollak @pmarca) "
