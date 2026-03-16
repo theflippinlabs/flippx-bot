@@ -52,6 +52,23 @@ def list_queue(
     return {"tweets": tweets, "total": total}
 
 
+@router.get("/library")
+def list_library(
+    status: str = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
+):
+    """List all tweets in the queue (all statuses) for the Library view."""
+    query = db.query(TweetQueue)
+    if status:
+        query = query.filter(TweetQueue.status == status)
+    total = query.count()
+    tweets = query.order_by(TweetQueue.created_at.desc()).offset(skip).limit(limit).all()
+    return {"tweets": tweets, "total": total}
+
+
 @router.delete("/tweets/{tweet_id}")
 def remove_from_queue(
     tweet_id: int,
@@ -61,11 +78,11 @@ def remove_from_queue(
     tweet = db.query(TweetQueue).filter(TweetQueue.id == tweet_id).first()
     if not tweet:
         raise HTTPException(status_code=404, detail="Tweet not found in queue")
-    if tweet.status != TweetStatus.pending:
-        raise HTTPException(status_code=400, detail="Can only cancel pending tweets")
-    tweet.status = TweetStatus.cancelled
+    if tweet.status == TweetStatus.sent:
+        raise HTTPException(status_code=400, detail="Cannot delete already-posted tweets")
+    db.delete(tweet)
     db.commit()
-    return {"message": "Tweet removed from queue"}
+    return {"message": "Tweet deleted from queue"}
 
 
 @router.post("/clear-pending")

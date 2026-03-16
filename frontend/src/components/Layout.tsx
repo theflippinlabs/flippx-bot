@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Calendar, List, BarChart2, Settings, Zap } from 'lucide-react'
+import { LayoutDashboard, Calendar, List, BookOpen, BarChart2, Settings, Zap } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getBotStatus } from '../lib/api'
 
@@ -7,6 +7,7 @@ const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Home' },
   { to: '/scheduler', icon: Calendar, label: 'Schedule' },
   { to: '/queue', icon: List, label: 'Queue' },
+  { to: '/library', icon: BookOpen, label: 'Library' },
   { to: '/analytics', icon: BarChart2, label: 'Stats' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]

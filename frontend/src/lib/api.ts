@@ -37,6 +37,12 @@ export const addToQueue = (content: string, priority = 0) =>
 export const removeFromQueue = (id: number) =>
   api.delete(`/queue/tweets/${id}`).then(r => r.data)
 
+// Library (all tweets, all statuses)
+export const getLibrary = (status?: string, skip = 0, limit = 100) =>
+  api.get('/queue/library', { params: { status: status || undefined, skip, limit } }).then(r => r.data)
+export const deleteTweet = (id: number) =>
+  api.delete(`/queue/tweets/${id}`).then(r => r.data)
+
 // Auto-reply rules
 export const getRules = () => api.get('/queue/rules').then(r => r.data)
 export const createRule = (data: { keyword: string; reply_template: string; match_type: string }) =>

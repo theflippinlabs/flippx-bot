@@ -57,6 +57,14 @@ class SchedulerService:
             id="bot_cycle",
             replace_existing=True,
         )
+        # Auto-generate tweets every 60 minutes to keep queue full
+        self.scheduler.add_job(
+            self._auto_generate_queue,
+            "interval",
+            minutes=60,
+            id="auto_generate_queue",
+            replace_existing=True,
+        )
 
     def schedule_tweet(self, tweet_id: int, scheduled_at: datetime, content: str) -> str:
         job_id = f"tweet_{tweet_id}"
@@ -211,6 +219,45 @@ class SchedulerService:
             return bool(re.search(rule.keyword, text, re.IGNORECASE))
         else:
             return keyword_lower in text_lower
+
+    def _auto_generate_queue(self):
+        """Auto-generate 10 AI tweets from trending topics and add to queue."""
+        from app.services.bot_state import is_bot_enabled
+        if not is_bot_enabled():
+            return
+
+        from app.database import SessionLocal
+        from app.models.tweet import TweetQueue
+        from app.services.twitter_service import twitter_service
+
+        db = SessionLocal()
+        try:
+            topics = twitter_service.fetch_trending_topics()
+            generated = 0
+            for i in range(10):
+                # Refresh trends halfway for topic diversity
+                if i == 5:
+                    topics = twitter_service.fetch_trending_topics()
+
+                tweet_text = twitter_service.generate_tweet(topics)
+                if not tweet_text:
+                    continue
+
+                # Skip duplicates
+                exists = db.query(TweetQueue).filter(TweetQueue.content == tweet_text).first()
+                if exists:
+                    continue
+
+                tweet = TweetQueue(content=tweet_text, priority=1)
+                db.add(tweet)
+                db.commit()
+                generated += 1
+
+            logger.info(f"Auto-generated {generated} tweets and added to queue")
+        except Exception as e:
+            logger.error(f"Auto-generate queue failed: {e}")
+        finally:
+            db.close()
 
     def _run_bot_cycle(self):
         """Run the FlippX autonomous bot cycle."""
