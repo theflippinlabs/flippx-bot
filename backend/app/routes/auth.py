@@ -1,6 +1,9 @@
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import APIKeyHeader
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -10,7 +13,10 @@ def verify_api_key(api_key: str = Depends(api_key_header)):
     # Skip auth if API_KEY was never configured (still default placeholder)
     if settings.API_KEY in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""):
         return api_key or "no-key"
+    received = f"{api_key[:8]}...(len={len(api_key)})" if api_key else "NONE"
+    expected = f"{settings.API_KEY[:8]}...(len={len(settings.API_KEY)})"
     if not api_key or api_key != settings.API_KEY:
+        logger.warning(f"API key mismatch: received={received}, expected={expected}")
         raise HTTPException(status_code=403, detail="Invalid or missing API key")
     return api_key
 
@@ -49,6 +55,17 @@ def run_cycle(api_key: str = Depends(verify_api_key)):
     thread = threading.Thread(target=twitter_service.run_bot_cycle, daemon=True)
     thread.start()
     return {"triggered": True}
+
+
+@router.get("/debug-auth")
+def debug_auth():
+    """Unauthenticated debug endpoint to diagnose API key issues."""
+    return {
+        "backend_api_key_len": len(settings.API_KEY) if settings.API_KEY else 0,
+        "backend_api_key_prefix": settings.API_KEY[:8] + "..." if settings.API_KEY and len(settings.API_KEY) > 8 else settings.API_KEY,
+        "is_placeholder": settings.API_KEY in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""),
+        "hint": "Compare backend_api_key_prefix with what your frontend sends in X-API-Key header",
+    }
 
 
 @router.get("/debug-env")
