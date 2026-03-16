@@ -304,6 +304,10 @@ class TwitterService:
                         "Use analogies and specific observations. NEVER use: 'alpha', 'WAGMI', 'NFA', "
                         "'let that sink in', 'hear me out', 'not financial advice', 'bullish on', "
                         "'few understand this'.\n\n"
+                        "6. FORMATTING: Plain natural text ONLY. NEVER use markdown, asterisks, "
+                        "underscores, dashes between words, bullet points, numbered lists, or any "
+                        "special formatting characters. No *bold*, no _italic_, no — em dashes, "
+                        "no - bullet points. Just normal conversational text like a real person typing.\n\n"
                         "Output ONLY the tweet. No quotes. No preamble."
                     ),
                 }],
@@ -314,6 +318,13 @@ class TwitterService:
             for prefix in ["Here's a tweet:", "Here's my tweet:", "Tweet:", "Here you go:"]:
                 if tweet_text.lower().startswith(prefix.lower()):
                     tweet_text = tweet_text[len(prefix):].strip()
+            # Remove any markdown formatting that slipped through
+            import re
+            tweet_text = re.sub(r'\*+', '', tweet_text)  # asterisks
+            tweet_text = re.sub(r'(?<!\w)_([^_]+)_(?!\w)', r'\1', tweet_text)  # _italic_
+            tweet_text = re.sub(r'\s*[—–]\s*', ' ', tweet_text)  # em/en dashes to space
+            tweet_text = re.sub(r'^\s*[-•]\s*', '', tweet_text, flags=re.MULTILINE)  # bullets
+            tweet_text = ' '.join(tweet_text.split())  # normalize whitespace
             if len(tweet_text) > 280:
                 tweet_text = tweet_text[:277] + "..."
             logger.info(
