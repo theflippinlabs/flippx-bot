@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.config import settings
 from app.routes.auth import verify_api_key
+from app.services import bot_state
 
 router = APIRouter()
 
@@ -26,8 +27,8 @@ def get_settings(api_key: str = Depends(verify_api_key)):
         "replies_per_run": settings.REPLIES_PER_RUN,
         "likes_per_run": settings.LIKES_PER_RUN,
         "retweets_per_run": settings.RETWEETS_PER_RUN,
-        "bot_enabled": settings.BOT_ENABLED,
-        "auto_reply_enabled": settings.AUTO_REPLY_ENABLED,
+        "bot_enabled": bot_state.is_bot_enabled(),
+        "auto_reply_enabled": bot_state.is_auto_reply_enabled(),
     }
 
 

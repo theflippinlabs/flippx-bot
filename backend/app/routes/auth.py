@@ -22,9 +22,10 @@ def get_profile(api_key: str = Depends(verify_api_key)):
 @router.get("/status")
 def get_bot_status(api_key: str = Depends(verify_api_key)):
     from app.services.scheduler_service import scheduler_service
+    from app.services.bot_state import is_bot_enabled, is_auto_reply_enabled
     return {
-        "bot_enabled": settings.BOT_ENABLED,
-        "auto_reply_enabled": settings.AUTO_REPLY_ENABLED,
+        "bot_enabled": is_bot_enabled(),
+        "auto_reply_enabled": is_auto_reply_enabled(),
         "scheduler_running": scheduler_service.scheduler.running,
         "jobs": scheduler_service.get_jobs(),
     }
@@ -32,8 +33,9 @@ def get_bot_status(api_key: str = Depends(verify_api_key)):
 
 @router.post("/toggle")
 def toggle_bot(api_key: str = Depends(verify_api_key)):
-    settings.BOT_ENABLED = not settings.BOT_ENABLED
-    return {"bot_enabled": settings.BOT_ENABLED}
+    from app.services.bot_state import toggle_bot as db_toggle
+    new_state = db_toggle()
+    return {"bot_enabled": new_state}
 
 
 @router.post("/run-cycle")

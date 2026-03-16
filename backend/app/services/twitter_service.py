@@ -249,18 +249,18 @@ class TwitterService:
         else:
             trend_context = "\n".join(f"- {t}" for t in topics[:12])
 
-        # Pick a random tweet format to force variety
-        formats = [
-            "Hot take / contrarian opinion that challenges conventional wisdom",
-            "Alpha call — share an insight most people are missing",
-            "Bold prediction about what happens next in this space",
-            "Question that sparks debate (e.g. 'Is X actually better than Y?')",
-            "'Unpopular opinion:' format with a spicy take",
-            "Comparison between two projects, technologies, or strategies",
-            "Breaking down why something everyone ignores actually matters",
-            "Market observation that connects dots others don't see",
+        # Pick a random tweet style to force variety
+        styles = [
+            "Witty observation — point out something obvious that nobody talks about",
+            "Contrarian take — challenge something everyone assumes is true",
+            "Relatable analogy — explain a crypto/tech concept through an everyday comparison",
+            "Specific market insight — mention concrete numbers, projects, or trends",
+            "Self-aware humor about the industry or community",
+            "Prediction with reasoning — what's coming next and why",
+            "Comparison that reframes how people think about two things",
+            "Question that makes people stop scrolling and think",
         ]
-        chosen_format = random.choice(formats)
+        chosen_style = random.choice(styles)
 
         try:
             response = self.claude.messages.create(
@@ -269,23 +269,25 @@ class TwitterService:
                 messages=[{
                     "role": "user",
                     "content": (
-                        f"TOPIC AREA: {topic_category}\n"
-                        f"FORMAT: {chosen_format}\n\n"
+                        f"TOPIC: {topic_category}\n"
+                        f"STYLE: {chosen_style}\n\n"
                         f"Trending tweets for context:\n{trend_context}\n\n"
-                        "Write ONE original tweet. Follow these rules EXACTLY:\n\n"
-                        "LENGTH: The tweet MUST be between 250 and 280 characters (including spaces, "
-                        "emojis, hashtags, @mentions). Count carefully. If under 250, add more substance.\n\n"
-                        "EMOJIS: Place exactly 2-3 emojis INSIDE the sentence flow, not bunched together. "
-                        "Good: 'The 🔥 thing about $SOL is...' Bad: 'Solana is great 🔥🚀💎'\n\n"
-                        "HASHTAGS: End with exactly 2-3 hashtags on the same line. Pick from: "
-                        "#Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH #BTC #Altcoins #Tech #Trading "
-                        "#Blockchain #NFTs #Layer2 #Airdrop — choose what fits the topic.\n\n"
-                        "TOKENS & ACCOUNTS: Mention specific $tokens ($BTC $ETH $SOL $AVAX $ARB $OP $LINK $MATIC $DOGE) "
-                        "or @accounts (@VitalikButerin @elonmusk @CZ_Binance @brian_armstrong @jessepollak "
-                        "@pmarca @naval) when they're relevant to your point. Don't force it.\n\n"
-                        "TONE: Confident insider who knows things. Not hype-bro, not academic. "
-                        "Like texting alpha to your smartest friend.\n\n"
-                        "Output ONLY the tweet text. No quotes. No 'Here's a tweet:'. Nothing but the tweet itself."
+                        "Write ONE tweet as @theflippinlabs. STRICT requirements:\n\n"
+                        "1. LENGTH: 250-280 characters total (including emojis, hashtags, everything). "
+                        "Count carefully.\n\n"
+                        "2. EMOJIS: Exactly 2-3 emojis placed naturally MID-SENTENCE. "
+                        "GOOD: 'The 🔥 thing about $SOL is that...' or 'Everyone's sleeping on this 👀 while...' "
+                        "BAD: 'Solana is amazing 🔥🚀💎' (never cluster at end).\n\n"
+                        "3. HASHTAGS: End with 2-3 hashtags. Choose from: "
+                        "#Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH #BTC #Tech #Trading #Blockchain #Layer2\n\n"
+                        "4. SPECIFICS: Use $tokens ($BTC $ETH $SOL $AVAX $ARB $OP $LINK) or "
+                        "@accounts (@VitalikButerin @elonmusk @CZ_Binance @brian_armstrong @jessepollak @pmarca) "
+                        "when they naturally fit. Don't force them.\n\n"
+                        "5. TONE: Dry wit + real knowledge. Think smart friend, not hype account. "
+                        "Use analogies and specific observations. NEVER use: 'alpha', 'WAGMI', 'NFA', "
+                        "'let that sink in', 'hear me out', 'not financial advice', 'bullish on', "
+                        "'few understand this'.\n\n"
+                        "Output ONLY the tweet. No quotes. No preamble."
                     ),
                 }],
                 system=settings.BOT_PERSONA,
@@ -450,7 +452,8 @@ class TwitterService:
             logger.info("Random skip triggered (15% chance), skipping cycle")
             return
 
-        if not settings.BOT_ENABLED:
+        from app.services.bot_state import is_bot_enabled
+        if not is_bot_enabled():
             logger.info("Bot is disabled, skipping cycle")
             return
 

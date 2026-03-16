@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Enum
+from sqlalchemy import Column, Integer, String, DateTime, Text, Enum, Boolean
 from sqlalchemy.sql import func
 from app.database import Base
 import enum
@@ -66,3 +66,13 @@ class InteractionLog(Base):
     tweet_id = Column(String, nullable=False, unique=True, index=True)
     interaction_type = Column(Enum(InteractionType), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BotState(Base):
+    """Persists bot on/off state across restarts."""
+    __tablename__ = "bot_state"
+
+    id = Column(Integer, primary_key=True, default=1)
+    bot_enabled = Column(Boolean, default=True, nullable=False)
+    auto_reply_enabled = Column(Boolean, default=True, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

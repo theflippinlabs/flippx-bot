@@ -108,7 +108,8 @@ class SchedulerService:
             db.close()
 
     def _process_queue(self):
-        if not settings.BOT_ENABLED:
+        from app.services.bot_state import is_bot_enabled
+        if not is_bot_enabled():
             return
 
         from app.database import SessionLocal
@@ -146,7 +147,8 @@ class SchedulerService:
             db.close()
 
     def _check_mentions(self):
-        if not settings.AUTO_REPLY_ENABLED:
+        from app.services.bot_state import is_auto_reply_enabled
+        if not is_auto_reply_enabled():
             return
 
         from app.services.twitter_service import twitter_service
