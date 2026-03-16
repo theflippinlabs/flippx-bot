@@ -46,6 +46,11 @@ export const toggleRule = (id: number) =>
 export const deleteRule = (id: number) =>
   api.delete(`/queue/rules/${id}`).then(r => r.data)
 
+// Settings
+export const getSettings = () => api.get('/settings/').then(r => r.data)
+export const updateSettings = (data: Record<string, unknown>) =>
+  api.patch('/settings/', data).then(r => r.data)
+
 // Analytics
 export const getOverview = () => api.get('/analytics/overview').then(r => r.data)
 export const getTimeline = (days = 7) =>
