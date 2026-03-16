@@ -25,11 +25,13 @@ class SchedulerService:
             self.scheduler.shutdown()
 
     def _add_system_jobs(self):
-        # Process queue every 15 minutes
+        from app.services.bot_state import get_tweet_interval_minutes
+        queue_interval = get_tweet_interval_minutes()
+        # Process queue at DB-configured interval
         self.scheduler.add_job(
             self._process_queue,
             "interval",
-            minutes=15,
+            minutes=queue_interval,
             id="process_queue",
             replace_existing=True,
         )

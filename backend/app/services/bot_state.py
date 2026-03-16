@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def _get_or_create(db) -> BotState:
     state = db.query(BotState).filter(BotState.id == 1).first()
     if not state:
-        state = BotState(id=1, bot_enabled=True, auto_reply_enabled=True)
+        state = BotState(id=1, bot_enabled=True, auto_reply_enabled=True, tweet_interval_minutes=15)
         db.add(state)
         db.commit()
         db.refresh(state)
@@ -74,5 +74,25 @@ def set_auto_reply_enabled(enabled: bool):
         state = _get_or_create(db)
         state.auto_reply_enabled = enabled
         db.commit()
+    finally:
+        db.close()
+
+
+def get_tweet_interval_minutes() -> int:
+    db = SessionLocal()
+    try:
+        state = _get_or_create(db)
+        return state.tweet_interval_minutes or 15
+    finally:
+        db.close()
+
+
+def set_tweet_interval_minutes(minutes: int):
+    db = SessionLocal()
+    try:
+        state = _get_or_create(db)
+        state.tweet_interval_minutes = minutes
+        db.commit()
+        logger.info(f"Tweet interval set to {minutes} minutes")
     finally:
         db.close()

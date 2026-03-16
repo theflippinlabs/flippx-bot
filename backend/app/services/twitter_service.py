@@ -16,6 +16,12 @@ SEARCH_QUERIES = [
     "smart contracts", "airdrop", "staking", "DEX",
 ]
 
+# CRO/Cronos community engagement queries
+CRO_SEARCH_QUERIES = [
+    "from:cronos_chain", "from:cryptocom", "#CroFam",
+    "$CRO cronos", "Cronos chain", "crypto.com CRO",
+    "#CRO", "Cronos DeFi",
+]
 
 TOPIC_CATEGORIES = [
     "Bitcoin price action and macro outlook",
@@ -38,6 +44,8 @@ TOPIC_CATEGORIES = [
     "Web3 gaming and metaverse",
     "Cross-chain bridges and interoperability",
     "Crypto exchange competition and drama",
+    "Cronos ecosystem, $CRO staking, and Crypto.com growth",
+    "CRO DeFi on Cronos chain — VVS, Tectonic, Ferro",
 ]
 
 
@@ -262,12 +270,9 @@ class TwitterService:
         ]
         chosen_style = random.choice(styles)
 
-        # Mix of short punchy and long detailed tweets
+        # 50/50 short punchy vs long detailed
         length_modes = [
             ("SHORT", "80-140 characters. Punchy one-liner. Sharp and memorable. Like a mic drop."),
-            ("SHORT", "80-140 characters. Punchy one-liner. Sharp and memorable. Like a mic drop."),
-            ("MEDIUM", "140-200 characters. Quick take with one strong point and a kicker."),
-            ("LONG", "240-280 characters. Detailed take with reasoning, analogy, or multi-part observation."),
             ("LONG", "240-280 characters. Detailed take with reasoning, analogy, or multi-part observation."),
         ]
         length_mode, length_instruction = random.choice(length_modes)
@@ -290,10 +295,11 @@ class TwitterService:
                         "GOOD: 'The 🔥 thing about $SOL is that...' or 'Everyone's sleeping on this 👀 while...' "
                         "BAD: 'Solana is amazing 🔥🚀💎' (never cluster at end).\n\n"
                         "3. HASHTAGS: End with 1-3 hashtags. Choose from: "
-                        "#Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH #BTC #Tech #Trading #Blockchain #Layer2\n\n"
-                        "4. SPECIFICS: Use $tokens ($BTC $ETH $SOL $AVAX $ARB $OP $LINK) or "
-                        "@accounts (@VitalikButerin @elonmusk @CZ_Binance @brian_armstrong @jessepollak @pmarca) "
-                        "when they naturally fit. Don't force them.\n\n"
+                        "#Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH #BTC #Tech #Trading #Blockchain #Layer2 "
+                        "#CRO #Cronos #CroFam\n\n"
+                        "4. SPECIFICS: Use $tokens ($BTC $ETH $SOL $CRO $AVAX $ARB $OP $LINK) or "
+                        "@accounts (@VitalikButerin @elonmusk @CZ_Binance @brian_armstrong @jessepollak @pmarca "
+                        "@cronos_chain @cryptocom) when they naturally fit. Don't force them.\n\n"
                         "5. TONE: Dry wit + real knowledge. Think smart friend, not hype account. "
                         "Use analogies and specific observations. NEVER use: 'alpha', 'WAGMI', 'NFA', "
                         "'let that sink in', 'hear me out', 'not financial advice', 'bullish on', "
@@ -387,6 +393,76 @@ class TwitterService:
             logger.error(f"Failed to search timeline: {e}")
             return []
 
+    def search_cro_community_tweets(self) -> list:
+        """Fetch recent tweets from @cronos_chain, @cryptocom, and #CroFam community."""
+        all_tweets = []
+        queries = random.sample(CRO_SEARCH_QUERIES, min(3, len(CRO_SEARCH_QUERIES)))
+        for query in queries:
+            try:
+                results = self.bearer_client.search_recent_tweets(
+                    query=f"{query} -is:retweet lang:en",
+                    max_results=10,
+                    tweet_fields=["public_metrics", "created_at", "author_id", "text"],
+                    expansions=["author_id"],
+                    user_fields=["public_metrics", "username"],
+                )
+                users_by_id = {}
+                if results.includes and "users" in results.includes:
+                    for user in results.includes["users"]:
+                        users_by_id[str(user.id)] = user
+
+                if results.data:
+                    for tweet in results.data:
+                        author = users_by_id.get(str(tweet.author_id))
+                        all_tweets.append({
+                            "id": str(tweet.id),
+                            "text": tweet.text,
+                            "metrics": tweet.public_metrics or {},
+                            "author_id": str(tweet.author_id),
+                            "author_username": author.username if author else "unknown",
+                            "author_followers": (
+                                author.public_metrics.get("followers_count", 0) if author else 0
+                            ),
+                        })
+            except tweepy.TweepyException as e:
+                logger.error(f"Failed to search CRO tweets for '{query}': {e}")
+        logger.info(f"Found {len(all_tweets)} CRO/Cronos community tweets")
+        return all_tweets
+
+    def generate_supportive_reply(self, tweet_text: str, author_username: str) -> str | None:
+        """Generate a positive, supportive reply for CRO/Cronos community tweets."""
+        try:
+            response = self.claude.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=300,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Reply to this tweet by @{author_username}:\n\n"
+                        f'"{tweet_text}"\n\n'
+                        "Write ONE supportive reply that:\n"
+                        "- Is genuinely positive and encouraging about the Cronos/$CRO ecosystem\n"
+                        "- Uses 2-3 emojis naturally\n"
+                        "- Adds value: mention a specific feature, stat, or reason you're excited\n"
+                        "- Sounds authentic, not like a shill bot\n"
+                        "- Under 200 characters\n"
+                        "- Output ONLY the reply. No quotes."
+                    ),
+                }],
+                system=(
+                    "You are @theflippinlabs, a crypto enthusiast who genuinely supports the "
+                    "Cronos ecosystem and $CRO. You're positive but authentic — never over-the-top "
+                    "or fake. You add real observations and excitement."
+                ),
+            )
+            reply_text = response.content[0].text.strip().strip('"')
+            if len(reply_text) > 280:
+                reply_text = reply_text[:277] + "..."
+            return reply_text
+        except Exception as e:
+            logger.error(f"Failed to generate supportive reply: {e}")
+            return None
+
     def like_tweet(self, tweet_id: str) -> bool:
         """Like a tweet by ID."""
         try:
@@ -451,7 +527,7 @@ class TwitterService:
         time.sleep(delay)
 
     def run_bot_cycle(self):
-        """Main bot cycle: generate tweet, reply, like, retweet."""
+        """Main bot cycle: generate tweet, engage CRO community, engage trending."""
         # Active hours check (7AM - 11PM)
         current_hour = datetime.now().hour
         if current_hour < 7 or current_hour >= 23:
@@ -474,24 +550,25 @@ class TwitterService:
         self._step_post_ai_tweet()
         self._random_delay()
 
-        # 2. Fetch timeline for engagement
+        # 2. CRO/Cronos community engagement (like, retweet, reply)
+        cro_tweets = self.search_cro_community_tweets()
+        if cro_tweets:
+            self._step_cro_engagement(cro_tweets)
+            self._random_delay()
+
+        # 3. Fetch trending crypto/tech timeline for general engagement
         timeline = self.search_timeline_tweets()
-        if not timeline:
-            logger.warning("No timeline tweets found, ending cycle")
-            return
+        if timeline:
+            # 4. Reply to up to 3 tweets (1000+ follower accounts only)
+            self._step_reply_to_tweets(timeline)
+            self._random_delay()
 
-        self._random_delay()
+            # 5. Like 3-5 tweets
+            self._step_like_tweets(timeline)
+            self._random_delay()
 
-        # 3. Reply to up to 3 tweets (1000+ follower accounts only)
-        self._step_reply_to_tweets(timeline)
-        self._random_delay()
-
-        # 4. Like 3-5 tweets
-        self._step_like_tweets(timeline)
-        self._random_delay()
-
-        # 5. Retweet 1 tweet with 50+ likes
-        self._step_retweet(timeline)
+            # 6. Retweet 1 tweet with 50+ likes
+            self._step_retweet(timeline)
 
         logger.info("=== FlippX bot cycle complete ===")
 
@@ -594,6 +671,65 @@ class TwitterService:
                     self._random_delay()
 
         logger.info(f"Retweeted {rts_done} tweets this cycle")
+
+    def _step_cro_engagement(self, cro_tweets: list):
+        """Like, retweet, and reply to CRO/Cronos community tweets with positive tone."""
+        logger.info(f"Starting CRO community engagement with {len(cro_tweets)} tweets")
+
+        # Prioritize @cronos_chain and @cryptocom tweets
+        priority_tweets = [
+            t for t in cro_tweets
+            if t["author_username"].lower() in ("cronos_chain", "cryptocom")
+            and not self.is_already_interacted(t["id"])
+        ]
+        community_tweets = [
+            t for t in cro_tweets
+            if t["author_username"].lower() not in ("cronos_chain", "cryptocom")
+            and not self.is_already_interacted(t["id"])
+        ]
+
+        # Like all priority tweets + up to 5 community tweets
+        liked = 0
+        for tweet in priority_tweets:
+            if self.like_tweet(tweet["id"]):
+                self.log_interaction(tweet["id"], "liked")
+                liked += 1
+                self._random_delay()
+
+        random.shuffle(community_tweets)
+        for tweet in community_tweets[:5]:
+            if self.like_tweet(tweet["id"]):
+                self.log_interaction(tweet["id"], "liked")
+                liked += 1
+                self._random_delay()
+
+        # Retweet up to 2 priority tweets
+        rts = 0
+        for tweet in priority_tweets[:2]:
+            if self.retweet(tweet["id"]):
+                self.log_interaction(tweet["id"], "retweeted")
+                rts += 1
+                self._random_delay()
+
+        # Reply to up to 3 CRO tweets (priority first, then community)
+        reply_pool = priority_tweets[:2] + community_tweets[:3]
+        random.shuffle(reply_pool)
+        replies = 0
+        for tweet in reply_pool:
+            if replies >= 3:
+                break
+            reply_text = self.generate_supportive_reply(tweet["text"], tweet["author_username"])
+            if not reply_text:
+                continue
+            result = self.reply_to_tweet(reply_text, tweet["id"])
+            if result["success"]:
+                self.log_interaction(tweet["id"], "replied")
+                replies += 1
+                self._random_delay()
+
+        logger.info(
+            f"CRO engagement: {liked} likes, {rts} retweets, {replies} replies"
+        )
 
 
 twitter_service = TwitterService()

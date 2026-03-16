@@ -69,10 +69,11 @@ class InteractionLog(Base):
 
 
 class BotState(Base):
-    """Persists bot on/off state across restarts."""
+    """Persists bot on/off state and settings across restarts."""
     __tablename__ = "bot_state"
 
     id = Column(Integer, primary_key=True, default=1)
     bot_enabled = Column(Boolean, default=True, nullable=False)
     auto_reply_enabled = Column(Boolean, default=True, nullable=False)
+    tweet_interval_minutes = Column(Integer, default=15, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

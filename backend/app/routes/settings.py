@@ -23,7 +23,7 @@ class PersonaUpdate(BaseModel):
 @router.get("/")
 def get_settings(api_key: str = Depends(verify_api_key)):
     return {
-        "tweet_interval_minutes": settings.TWEET_INTERVAL_MINUTES,
+        "tweet_interval_minutes": bot_state.get_tweet_interval_minutes(),
         "replies_per_run": settings.REPLIES_PER_RUN,
         "likes_per_run": settings.LIKES_PER_RUN,
         "retweets_per_run": settings.RETWEETS_PER_RUN,
@@ -35,7 +35,7 @@ def get_settings(api_key: str = Depends(verify_api_key)):
 @router.patch("/")
 def update_settings(data: SettingsUpdate, api_key: str = Depends(verify_api_key)):
     if data.tweet_interval_minutes is not None and data.tweet_interval_minutes > 0:
-        settings.TWEET_INTERVAL_MINUTES = data.tweet_interval_minutes
+        bot_state.set_tweet_interval_minutes(data.tweet_interval_minutes)
     if data.replies_per_run is not None and data.replies_per_run >= 0:
         settings.REPLIES_PER_RUN = data.replies_per_run
     if data.likes_per_run is not None and data.likes_per_run >= 0:

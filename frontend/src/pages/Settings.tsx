@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Sliders, Save } from 'lucide-react'
+import { Settings as SettingsIcon, User, Sliders, Save, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getSettings, updateSettings, getPersona, updatePersona } from '../lib/api'
+
+const INTERVAL_OPTIONS = [5, 15, 30, 45, 60]
 
 export default function SettingsPage() {
   return (
@@ -94,14 +96,14 @@ function PersonaEditor() {
 function BotParameters() {
   const queryClient = useQueryClient()
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings })
-  const [interval, setInterval_] = useState(60)
+  const [interval, setInterval_] = useState(15)
   const [replies, setReplies] = useState(3)
   const [likes, setLikes] = useState(5)
   const [retweets, setRetweets] = useState(1)
 
   useEffect(() => {
     if (settings) {
-      setInterval_(settings.tweet_interval_minutes ?? 60)
+      setInterval_(settings.tweet_interval_minutes ?? 15)
       setReplies(settings.replies_per_run ?? 3)
       setLikes(settings.likes_per_run ?? 5)
       setRetweets(settings.retweets_per_run ?? 1)
@@ -133,14 +135,31 @@ function BotParameters() {
         Bot Parameters
       </h2>
 
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs text-slate-400 mb-1.5 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            Tweet Posting Interval
+          </label>
+          <div className="flex gap-2">
+            {INTERVAL_OPTIONS.map(opt => (
+              <button
+                key={opt}
+                onClick={() => setInterval_(opt)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  interval === opt
+                    ? 'bg-sky-500 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                {opt}m
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
-        <NumberField
-          label="Cycle interval (min)"
-          value={interval}
-          onChange={setInterval_}
-          min={5}
-          max={1440}
-        />
         <NumberField
           label="Replies per run"
           value={replies}
