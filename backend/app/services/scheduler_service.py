@@ -2,6 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
 from datetime import datetime
 import logging
+import random
 import re
 
 from app.config import settings
@@ -148,29 +149,56 @@ class SchedulerService:
         if not settings.AUTO_REPLY_ENABLED:
             return
 
-        from app.database import SessionLocal
-        from app.models.auto_reply import AutoReplyRule
         from app.services.twitter_service import twitter_service
-        from datetime import timezone
+        import time
 
-        db = SessionLocal()
         try:
-            mentions = twitter_service.get_mentions()
-            rules = db.query(AutoReplyRule).filter(AutoReplyRule.is_active.is_(True)).all()
+            mentions, includes = twitter_service.get_mentions()
+            if not mentions:
+                return
 
+            # Build author lookup from includes
+            users_by_id = {}
+            if includes and "users" in includes:
+                for user in includes["users"]:
+                    users_by_id[str(user.id)] = user
+
+            replied_count = 0
             for mention in mentions:
-                for rule in rules:
-                    if self._matches_rule(mention.text, rule):
-                        result = twitter_service.reply_to_tweet(
-                            rule.reply_template, str(mention.id)
-                        )
-                        if result["success"]:
-                            rule.trigger_count += 1
-                            rule.last_triggered = datetime.now(timezone.utc)
-                            db.commit()
-                        break
-        finally:
-            db.close()
+                tweet_id = str(mention.id)
+
+                # Skip if already replied
+                if twitter_service.is_already_interacted(tweet_id):
+                    continue
+
+                # Get author username
+                author = users_by_id.get(str(mention.author_id))
+                author_username = author.username if author else "someone"
+
+                # Generate AI reply using Anthropic
+                reply_text = twitter_service.generate_mention_reply(
+                    mention.text, author_username
+                )
+                if not reply_text:
+                    continue
+
+                result = twitter_service.reply_to_tweet(reply_text, tweet_id)
+                if result["success"]:
+                    twitter_service.log_interaction(tweet_id, "replied")
+                    replied_count += 1
+                    logger.info(f"Auto-replied to @{author_username} mention ({tweet_id})")
+
+                    # Human-like delay between replies
+                    time.sleep(random.uniform(3, 8))
+
+                # Cap at 5 auto-replies per check
+                if replied_count >= 5:
+                    break
+
+            if replied_count > 0:
+                logger.info(f"Auto-replied to {replied_count} mentions this check")
+        except Exception as e:
+            logger.error(f"Mention check failed: {e}")
 
     def _matches_rule(self, text: str, rule) -> bool:
         text_lower = text.lower()

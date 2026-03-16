@@ -9,8 +9,11 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 SEARCH_QUERIES = [
-    "tech", "AI", "startups", "programming", "science",
-    "culture", "finance", "crypto", "design", "productivity",
+    "Bitcoin", "Ethereum", "Solana", "DeFi", "crypto alpha",
+    "Web3", "AI agents", "blockchain", "NFT", "memecoin",
+    "Layer 2", "onchain", "tokenomics", "crypto trading",
+    "AI startups", "GPU", "LLM", "tech IPO", "fintech",
+    "smart contracts", "airdrop", "staking", "DEX",
 ]
 
 
@@ -94,14 +97,50 @@ class TwitterService:
     def get_mentions(self, since_id: str = None) -> list:
         try:
             me = self.client.get_me(user_auth=True)
-            params = {"expansions": ["author_id"], "tweet_fields": ["created_at", "text"]}
+            params = {
+                "expansions": ["author_id"],
+                "tweet_fields": ["created_at", "text"],
+                "user_fields": ["username"],
+            }
             if since_id:
                 params["since_id"] = since_id
             mentions = self.client.get_users_mentions(me.data.id, **params)
-            return mentions.data or []
+            return mentions.data or [], mentions.includes if mentions.includes else {}
         except tweepy.TweepyException as e:
             logger.error(f"Failed to get mentions: {e}")
-            return []
+            return [], {}
+
+    def generate_mention_reply(self, tweet_text: str, author_username: str) -> str | None:
+        """Use Claude to generate a smart contextual reply to a mention."""
+        try:
+            response = self.claude.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=300,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"@{author_username} mentioned you (@theflippinlabs) in this tweet:\n\n"
+                        f'"{tweet_text}"\n\n'
+                        "Write a reply that:\n"
+                        "- Directly addresses what they said/asked\n"
+                        "- Uses 2-3 emojis to keep the energy up\n"
+                        "- Is helpful, witty, and encourages further conversation\n"
+                        "- If they asked a question, answer it with insight\n"
+                        "- If they tagged you for attention, acknowledge them and add value\n"
+                        "- Under 250 characters\n"
+                        "- Output ONLY the reply text. No quotes, no explanation."
+                    ),
+                }],
+                system=settings.REPLY_PERSONA,
+            )
+            reply_text = response.content[0].text.strip().strip('"')
+            if len(reply_text) > 280:
+                reply_text = reply_text[:277] + "..."
+            logger.info(f"Generated mention reply ({len(reply_text)} chars): {reply_text[:60]}...")
+            return reply_text
+        except Exception as e:
+            logger.error(f"Failed to generate mention reply: {e}")
+            return None
 
     def get_tweet_metrics(self, tweet_id: str) -> dict:
         try:
@@ -137,41 +176,58 @@ class TwitterService:
     # ── New: AI-powered methods ───────────────────────────────────────
 
     def fetch_trending_topics(self) -> list[str]:
-        """Search recent popular tweets to extract trending topics."""
+        """Search multiple crypto/tech queries to build a rich trending picture."""
         topics = []
-        query = random.choice(SEARCH_QUERIES)
-        try:
-            results = self.bearer_client.search_recent_tweets(
-                query=query,
-                max_results=10,
-                tweet_fields=["public_metrics", "text"],
-            )
-            if results.data:
-                for tweet in results.data:
-                    topics.append(tweet.text)
-            logger.info(f"Fetched {len(topics)} tweets for topic discovery (query: {query})")
-        except tweepy.TweepyException as e:
-            logger.error(f"Failed to fetch trending topics: {e}")
+        # Sample 3 different queries for diversity
+        queries = random.sample(SEARCH_QUERIES, min(3, len(SEARCH_QUERIES)))
+        for query in queries:
+            try:
+                results = self.bearer_client.search_recent_tweets(
+                    query=f"{query} -is:retweet lang:en",
+                    max_results=10,
+                    tweet_fields=["public_metrics", "text"],
+                )
+                if results.data:
+                    # Prioritize tweets with higher engagement
+                    sorted_tweets = sorted(
+                        results.data,
+                        key=lambda t: (t.public_metrics or {}).get("like_count", 0),
+                        reverse=True,
+                    )
+                    for tweet in sorted_tweets[:5]:
+                        topics.append(tweet.text)
+                logger.info(f"Fetched tweets for topic: {query}")
+            except tweepy.TweepyException as e:
+                logger.error(f"Failed to fetch trending topics for '{query}': {e}")
+        logger.info(f"Total trending topics collected: {len(topics)}")
         return topics
 
     def generate_tweet(self, topics: list[str]) -> str | None:
-        """Use Claude to generate an original tweet based on trending topics."""
+        """Use Claude to generate a full 280-char tweet with emojis, hashtags, and tags."""
         if not topics:
-            topic_context = "current internet culture and tech trends"
+            topic_context = "Current crypto and tech trends: Bitcoin, Ethereum, Solana, AI agents, DeFi, Web3, Layer 2s, memecoins"
         else:
-            topic_context = "\n".join(topics[:10])
+            topic_context = "\n".join(topics[:15])
 
         try:
             response = self.claude.messages.create(
                 model="claude-sonnet-4-20250514",
-                max_tokens=300,
+                max_tokens=400,
                 messages=[{
                     "role": "user",
                     "content": (
-                        f"Here are some trending tweets for inspiration:\n\n{topic_context}\n\n"
-                        "Write ONE original tweet. Don't copy or reference the tweets above directly — "
-                        "use them only to understand what topics are hot right now. "
-                        "Be original and have your own take."
+                        f"Here are trending crypto/tech tweets right now:\n\n{topic_context}\n\n"
+                        "Write ONE original tweet that will go viral. Requirements:\n"
+                        "- USE ALL 280 CHARACTERS. Aim for 250-280 chars. Short tweets get no reach.\n"
+                        "- Include 3-5 emojis spread throughout the tweet.\n"
+                        "- Include 2-3 relevant hashtags like #Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH.\n"
+                        "- Tag 1-2 relevant influential accounts IF discussing their projects "
+                        "(e.g. @VitalikButerin for ETH, @elonmusk for tech/AI, @CZ_Binance for Binance, "
+                        "@brian_armstrong for Coinbase, @jessepollak for Base, @aaboronkov for crypto analysis). "
+                        "Only tag when genuinely relevant to the topic.\n"
+                        "- Make it a hot take, alpha call, or conversation starter that people want to reply to.\n"
+                        "- Don't copy the tweets above — use them to identify what's trending and craft your own take.\n"
+                        "- Output ONLY the tweet text. No quotes, no explanation."
                     ),
                 }],
                 system=settings.BOT_PERSONA,
@@ -179,39 +235,44 @@ class TwitterService:
             tweet_text = response.content[0].text.strip().strip('"')
             if len(tweet_text) > 280:
                 tweet_text = tweet_text[:277] + "..."
-            logger.info(f"Generated tweet: {tweet_text[:50]}...")
+            logger.info(f"Generated tweet ({len(tweet_text)} chars): {tweet_text[:80]}...")
             return tweet_text
         except Exception as e:
             logger.error(f"Failed to generate tweet with Claude: {e}")
             return None
 
     def generate_reply(self, tweet_text: str, author_username: str) -> str | None:
-        """Use Claude to generate an intelligent reply to a tweet."""
+        """Use Claude to generate a smart contextual reply with emojis."""
         try:
             response = self.claude.messages.create(
                 model="claude-sonnet-4-20250514",
-                max_tokens=200,
+                max_tokens=300,
                 messages=[{
                     "role": "user",
                     "content": (
                         f"Reply to this tweet by @{author_username}:\n\n"
                         f'"{tweet_text}"\n\n'
-                        "Write ONE reply."
+                        "Write ONE reply that:\n"
+                        "- Uses 2-3 emojis to stand out in the replies\n"
+                        "- Adds genuine insight, alpha, or a spicy counter-take\n"
+                        "- Asks a follow-up question OR drops knowledge to keep the thread alive\n"
+                        "- Is under 250 characters\n"
+                        "- Output ONLY the reply text. No quotes, no explanation."
                     ),
                 }],
                 system=settings.REPLY_PERSONA,
             )
             reply_text = response.content[0].text.strip().strip('"')
-            if len(reply_text) > 200:
-                reply_text = reply_text[:197] + "..."
-            logger.info(f"Generated reply: {reply_text[:50]}...")
+            if len(reply_text) > 280:
+                reply_text = reply_text[:277] + "..."
+            logger.info(f"Generated reply ({len(reply_text)} chars): {reply_text[:60]}...")
             return reply_text
         except Exception as e:
             logger.error(f"Failed to generate reply with Claude: {e}")
             return None
 
     def search_timeline_tweets(self) -> list:
-        """Fetch recent popular tweets from the timeline for engagement."""
+        """Fetch recent popular crypto/tech tweets for engagement."""
         try:
             query = random.choice(SEARCH_QUERIES) + " -is:retweet -is:reply lang:en"
             results = self.bearer_client.search_recent_tweets(
