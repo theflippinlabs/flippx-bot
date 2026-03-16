@@ -24,28 +24,26 @@ CRO_SEARCH_QUERIES = [
 ]
 
 TOPIC_CATEGORIES = [
-    "Bitcoin price action and macro outlook",
-    "Ethereum ecosystem and upgrades",
-    "Solana speed, DeFi, and memecoins",
-    "AI agents and autonomous systems in crypto",
-    "DeFi yield strategies and protocol wars",
-    "Layer 2 scaling wars (Arbitrum vs Optimism vs Base vs zkSync)",
-    "Crypto regulation and government moves",
-    "NFT market evolution and digital art",
-    "Real World Assets (RWA) tokenization",
-    "Stablecoin dominance and CBDC threats",
-    "Crypto VC funding and startup landscape",
-    "AI x Crypto intersection projects",
-    "Memecoins and degen culture",
-    "On-chain analytics and whale watching",
-    "Tech industry layoffs, pivots, and AI hiring",
-    "GPU shortage and AI infrastructure",
-    "Open source AI vs closed models debate",
-    "Web3 gaming and metaverse",
-    "Cross-chain bridges and interoperability",
-    "Crypto exchange competition and drama",
-    "Cronos ecosystem, $CRO staking, and Crypto.com growth",
-    "CRO DeFi on Cronos chain — VVS, Tectonic, Ferro",
+    "AI tools changing how people work and build products",
+    "Startup founders and the grind of building something from zero",
+    "Money mindset and how wealthy people actually think about risk",
+    "Social media algorithms and how they shape what we believe",
+    "Productivity systems that actually work vs performative hustle",
+    "The future of remote work and digital nomad culture",
+    "Tech layoffs, hiring cycles, and what it means for the industry",
+    "AI replacing jobs vs creating new ones nobody expected",
+    "How the smartest entrepreneurs think about failure differently",
+    "Content creation as a business and the creator economy",
+    "Bitcoin, Ethereum and the macro outlook for crypto",
+    "DeFi strategies and protocol competition",
+    "Memecoins, degen culture, and why people love high risk bets",
+    "Why most people stay broke despite earning good money",
+    "The psychology of scrolling, dopamine, and attention spans",
+    "Web3 gaming, NFTs, and digital ownership",
+    "Open source AI vs big tech closed models",
+    "The gap between what schools teach and what the market needs",
+    "Side hustles that actually scale vs ones that trap you",
+    "How social proof and FOMO drive 90% of investment decisions",
 ]
 
 
@@ -257,25 +255,30 @@ class TwitterService:
         else:
             trend_context = "\n".join(f"- {t}" for t in topics[:12])
 
-        # Pick a random tweet style to force variety
-        styles = [
-            "Witty observation — point out something obvious that nobody talks about",
-            "Contrarian take — challenge something everyone assumes is true",
-            "Relatable analogy — explain a crypto/tech concept through an everyday comparison",
-            "Specific market insight — mention concrete numbers, projects, or trends",
-            "Self-aware humor about the industry or community",
-            "Prediction with reasoning — what's coming next and why",
-            "Comparison that reframes how people think about two things",
-            "Question that makes people stop scrolling and think",
+        # Weighted mix: 25% short, 25% long, 20% question, 15% trend, 15% controversial
+        tweet_types = [
+            ("SHORT_PUNCHY", "180-200 characters. Short punchy take. Sharp, memorable, hits hard. Like texting a friend a hot take.", "Witty observation or sharp one-liner that makes people go 'damn thats true'"),
+            ("SHORT_PUNCHY", "180-200 characters. Short punchy take. Sharp, memorable, hits hard. Like texting a friend a hot take.", "Contrarian take that challenges what everyone assumes"),
+            ("SHORT_PUNCHY", "180-200 characters. Short punchy take. Sharp, memorable, hits hard. Like texting a friend a hot take.", "Self-aware humor about the industry or hustle culture"),
+            ("SHORT_PUNCHY", "180-200 characters. Short punchy take. Sharp, memorable, hits hard. Like texting a friend a hot take.", "Relatable analogy that reframes a concept"),
+            ("SHORT_PUNCHY", "180-200 characters. Short punchy take. Sharp, memorable, hits hard. Like texting a friend a hot take.", "Quick prediction with one strong reason"),
+            ("LONG_DETAILED", "240-280 characters. Longer developed take with reasoning, examples, or a multi-part observation. Build the argument.", "Detailed observation with reasoning and a kicker at the end"),
+            ("LONG_DETAILED", "240-280 characters. Longer developed take with reasoning, examples, or a multi-part observation. Build the argument.", "Comparison that reframes how people think about two things"),
+            ("LONG_DETAILED", "240-280 characters. Longer developed take with reasoning, examples, or a multi-part observation. Build the argument.", "Specific insight with numbers, names, or concrete examples"),
+            ("LONG_DETAILED", "240-280 characters. Longer developed take with reasoning, examples, or a multi-part observation. Build the argument.", "Analogy that explains something complex through everyday life"),
+            ("LONG_DETAILED", "240-280 characters. Longer developed take with reasoning, examples, or a multi-part observation. Build the argument.", "Prediction with step-by-step reasoning"),
+            ("QUESTION", "180-250 characters. Ask the audience a thought-provoking question that makes them stop scrolling and want to reply.", "Question that challenges a common belief"),
+            ("QUESTION", "180-250 characters. Ask the audience a thought-provoking question that makes them stop scrolling and want to reply.", "Would you rather or this vs that question about tech or money"),
+            ("QUESTION", "180-250 characters. Ask the audience a thought-provoking question that makes them stop scrolling and want to reply.", "Genuine curiosity question about industry trends"),
+            ("QUESTION", "180-250 characters. Ask the audience a thought-provoking question that makes them stop scrolling and want to reply.", "Poll-style question with strong opinions on both sides"),
+            ("TREND_COMMENTARY", "180-280 characters. React to the trending topics provided. Give your hot take on whats happening right now.", "React to a trending topic with your unique spin"),
+            ("TREND_COMMENTARY", "180-280 characters. React to the trending topics provided. Give your hot take on whats happening right now.", "Connect a current trend to a bigger pattern most people miss"),
+            ("TREND_COMMENTARY", "180-280 characters. React to the trending topics provided. Give your hot take on whats happening right now.", "Quick commentary on why everyone is talking about this trend"),
+            ("CONTROVERSIAL", "180-280 characters. Bold controversial statement that sparks debate. Not offensive, just a strong opinion most people are afraid to say.", "Unpopular opinion that will get people arguing in replies"),
+            ("CONTROVERSIAL", "180-280 characters. Bold controversial statement that sparks debate. Not offensive, just a strong opinion most people are afraid to say.", "Bold claim that goes against mainstream tech or crypto thinking"),
+            ("CONTROVERSIAL", "180-280 characters. Bold controversial statement that sparks debate. Not offensive, just a strong opinion most people are afraid to say.", "Statement that picks a side in an ongoing industry debate"),
         ]
-        chosen_style = random.choice(styles)
-
-        # 50/50 short punchy vs long detailed
-        length_modes = [
-            ("SHORT", "80-140 characters. Punchy one-liner. Sharp and memorable. Like a mic drop."),
-            ("LONG", "240-280 characters. Detailed take with reasoning, analogy, or multi-part observation."),
-        ]
-        length_mode, length_instruction = random.choice(length_modes)
+        length_mode, length_instruction, chosen_style = random.choice(tweet_types)
 
         try:
             response = self.claude.messages.create(
@@ -285,57 +288,61 @@ class TwitterService:
                     "role": "user",
                     "content": (
                         f"TOPIC: {topic_category}\n"
-                        f"STYLE: {chosen_style}\n"
-                        f"LENGTH MODE: {length_mode}\n\n"
+                        f"TYPE: {length_mode}\n"
+                        f"STYLE: {chosen_style}\n\n"
                         f"Trending tweets for context:\n{trend_context}\n\n"
                         "Write ONE tweet as @theflippinlabs. STRICT requirements:\n\n"
                         f"1. LENGTH: {length_instruction} "
-                        "Count carefully. Do NOT exceed 280 characters total.\n\n"
-                        "2. EMOJIS: 1-3 emojis placed naturally MID-SENTENCE. "
-                        "GOOD: 'The 🔥 thing about $SOL is that...' or 'Everyone's sleeping on this 👀 while...' "
-                        "BAD: 'Solana is amazing 🔥🚀💎' (never cluster at end).\n\n"
-                        "3. HASHTAGS: End with 1-3 hashtags. Choose from: "
-                        "#Bitcoin #Crypto #AI #Web3 #DeFi #Solana #ETH #BTC #Tech #Trading #Blockchain #Layer2 "
-                        "#CRO #Cronos #CroFam\n\n"
-                        "4. SPECIFICS: Use $tokens ($BTC $ETH $SOL $CRO $AVAX $ARB $OP $LINK) or "
-                        "@accounts (@VitalikButerin @elonmusk @CZ_Binance @brian_armstrong @jessepollak @pmarca "
-                        "@cronos_chain @cryptocom) when they naturally fit. Don't force them.\n\n"
-                        "5. TONE: Dry wit + real knowledge. Think smart friend, not hype account. "
-                        "Use analogies and specific observations. NEVER use: 'alpha', 'WAGMI', 'NFA', "
-                        "'let that sink in', 'hear me out', 'not financial advice', 'bullish on', "
-                        "'few understand this'.\n\n"
-                        "6. FORMATTING: Plain natural text ONLY. NEVER use markdown, asterisks, "
-                        "underscores, dashes between words, bullet points, numbered lists, or any "
-                        "special formatting characters. No *bold*, no _italic_, no — em dashes, "
-                        "no - bullet points. Just normal conversational text like a real person typing.\n\n"
-                        "Output ONLY the tweet. No quotes. No preamble."
+                        "MINIMUM 180 characters, MAXIMUM 280 characters. Count carefully. "
+                        "If your tweet is under 180 chars, add more substance. If over 280, trim it.\n\n"
+                        "2. EMOJIS: Use 0 to 3 emojis like a real Twitter power user. "
+                        "Sometimes use none at all. When you do use them, place them naturally mid sentence. "
+                        "Never cluster emojis together. Never use emojis as bullet points or separators.\n\n"
+                        "3. HASHTAGS: Optionally end with 1-2 relevant hashtags. Not every tweet needs them.\n\n"
+                        "4. TONE: Smart, confident, conversational. Like a friend who actually knows "
+                        "what they're talking about. Mix humor with real insight. "
+                        "NEVER use: 'alpha', 'WAGMI', 'NFA', 'let that sink in', 'hear me out', "
+                        "'not financial advice', 'bullish on', 'few understand this', 'thread'.\n\n"
+                        "5. FORMATTING: Plain natural text ONLY like a real human typing on their phone. "
+                        "ABSOLUTELY NO markdown, asterisks, underscores, em dashes, en dashes, "
+                        "bullet points, numbered lists, colons used as separators, or any special "
+                        "formatting. No *bold*. No _italic_. No word — word. No word: word as a title. "
+                        "Just flowing natural sentences.\n\n"
+                        "Output ONLY the tweet text. Nothing else."
                     ),
                 }],
                 system=settings.BOT_PERSONA,
             )
-            tweet_text = response.content[0].text.strip().strip('"')
-            # Strip any preamble like "Here's..." or "Tweet:" that models sometimes add
-            for prefix in ["Here's a tweet:", "Here's my tweet:", "Tweet:", "Here you go:"]:
-                if tweet_text.lower().startswith(prefix.lower()):
-                    tweet_text = tweet_text[len(prefix):].strip()
-            # Remove any markdown formatting that slipped through
-            import re
-            tweet_text = re.sub(r'\*+', '', tweet_text)  # asterisks
-            tweet_text = re.sub(r'(?<!\w)_([^_]+)_(?!\w)', r'\1', tweet_text)  # _italic_
-            tweet_text = re.sub(r'\s*[—–]\s*', ' ', tweet_text)  # em/en dashes to space
-            tweet_text = re.sub(r'^\s*[-•]\s*', '', tweet_text, flags=re.MULTILINE)  # bullets
-            tweet_text = ' '.join(tweet_text.split())  # normalize whitespace
-            if len(tweet_text) > 280:
-                tweet_text = tweet_text[:277] + "..."
+            tweet_text = self._clean_tweet(response.content[0].text)
+            # Enforce 180-280 char range
+            if len(tweet_text) < 180 or len(tweet_text) > 280:
+                logger.warning(f"Tweet out of range ({len(tweet_text)} chars), rejecting: {tweet_text[:60]}...")
+                return None
             logger.info(
                 f"Generated tweet ({len(tweet_text)} chars) "
-                f"[topic={topic_category[:30]}] [style={chosen_style[:30]}]: "
+                f"[type={length_mode}] [topic={topic_category[:25]}]: "
                 f"{tweet_text[:80]}..."
             )
             return tweet_text
         except Exception as e:
             logger.error(f"Failed to generate tweet with Claude: {e}")
             return None
+
+    @staticmethod
+    def _clean_tweet(raw: str) -> str:
+        """Strip preamble, markdown, and formatting artifacts from generated text."""
+        import re
+        text = raw.strip().strip('"')
+        for prefix in ["Here's a tweet:", "Here's my tweet:", "Tweet:", "Here you go:"]:
+            if text.lower().startswith(prefix.lower()):
+                text = text[len(prefix):].strip()
+        text = re.sub(r'\*+', '', text)
+        text = re.sub(r'(?<!\w)_([^_]+)_(?!\w)', r'\1', text)
+        text = re.sub(r'\s*[—–]\s*', ' ', text)
+        text = re.sub(r'^\s*[-•]\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\t', ' ', text)
+        text = ' '.join(text.split())
+        return text
 
     def generate_reply(self, tweet_text: str, author_username: str) -> str | None:
         """Use Claude to generate a smart contextual reply with emojis."""

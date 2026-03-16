@@ -28,19 +28,19 @@ def _refresh_queue():
             db.commit()
             logger.info(f"Cleared {deleted} old pending tweets from queue")
 
-            # Generate 100 fresh tweets with mixed styles
+            # Generate 100 fresh tweets (retry rejected ones up to 150 attempts)
             topics = twitter_service.fetch_trending_topics()
             generated = 0
-            for i in range(100):
-                # Refresh trends every 10 for diversity
-                if i > 0 and i % 10 == 0:
+            attempts = 0
+            while generated < 100 and attempts < 160:
+                attempts += 1
+                if generated > 0 and generated % 10 == 0 and attempts % 10 == 1:
                     topics = twitter_service.fetch_trending_topics()
 
                 tweet_text = twitter_service.generate_tweet(topics)
                 if not tweet_text:
                     continue
 
-                # Skip duplicates
                 exists = db.query(TweetQueue).filter(
                     TweetQueue.content == tweet_text
                 ).first()
@@ -51,17 +51,16 @@ def _refresh_queue():
                 db.add(tweet)
                 db.commit()
                 generated += 1
-                if generated % 10 == 0:
-                    logger.info(f"Generated {generated}/100 fresh tweets...")
+                if generated % 20 == 0:
+                    logger.info(f"Generated {generated}/100 fresh tweets ({attempts} attempts)...")
 
-            logger.info(f"Queue refresh complete: generated {generated} fresh tweets")
+            logger.info(f"Queue refresh complete: {generated} tweets in {attempts} attempts")
         except Exception as e:
             db.rollback()
             logger.error(f"Queue refresh failed: {e}")
         finally:
             db.close()
 
-    # Run in background thread so it doesn't block startup/health checks
     thread = threading.Thread(target=_do_refresh, daemon=True)
     thread.start()
     logger.info("Started queue refresh in background thread")

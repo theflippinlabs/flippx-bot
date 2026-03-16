@@ -223,7 +223,7 @@ class SchedulerService:
             return keyword_lower in text_lower
 
     def _auto_generate_queue(self):
-        """Auto-generate AI tweets to keep at least 50 pending in queue."""
+        """Auto-generate 50 AI tweets when queue drops below 20 pending."""
         from app.services.bot_state import is_bot_enabled
         if not is_bot_enabled():
             return
@@ -238,24 +238,23 @@ class SchedulerService:
                 TweetQueue.status == TweetStatus.pending
             ).count()
 
-            if pending_count >= 50:
-                logger.info(f"Queue has {pending_count} pending tweets, skipping auto-generate")
+            if pending_count >= 20:
+                logger.info(f"Queue has {pending_count} pending tweets (>= 20), skipping")
                 return
 
-            # Generate enough to reach 50, minimum 10
-            to_generate = max(10, 50 - pending_count)
+            logger.info(f"Queue low ({pending_count} pending), generating 50 fresh tweets with current trends...")
             topics = twitter_service.fetch_trending_topics()
             generated = 0
-            for i in range(to_generate):
-                # Refresh trends every 10 tweets for diversity
-                if i > 0 and i % 10 == 0:
+            attempts = 0
+            while generated < 50 and attempts < 80:
+                attempts += 1
+                if generated > 0 and generated % 10 == 0:
                     topics = twitter_service.fetch_trending_topics()
 
                 tweet_text = twitter_service.generate_tweet(topics)
                 if not tweet_text:
                     continue
 
-                # Skip duplicates
                 exists = db.query(TweetQueue).filter(TweetQueue.content == tweet_text).first()
                 if exists:
                     continue
@@ -265,7 +264,7 @@ class SchedulerService:
                 db.commit()
                 generated += 1
 
-            logger.info(f"Auto-generated {generated} tweets (had {pending_count} pending, target 50+)")
+            logger.info(f"Auto-generated {generated}/50 tweets (had {pending_count}, now {pending_count + generated})")
         except Exception as e:
             logger.error(f"Auto-generate queue failed: {e}")
         finally:
