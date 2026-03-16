@@ -314,10 +314,12 @@ class TwitterService:
                 system=settings.BOT_PERSONA,
             )
             tweet_text = self._clean_tweet(response.content[0].text)
-            # Enforce 180-280 char range
-            if len(tweet_text) < 180 or len(tweet_text) > 280:
-                logger.warning(f"Tweet out of range ({len(tweet_text)} chars), rejecting: {tweet_text[:60]}...")
+            # Enforce length: min 80 chars (real content), max 280 (Twitter limit)
+            if len(tweet_text) < 80:
+                logger.warning(f"Tweet too short ({len(tweet_text)} chars), rejecting: {tweet_text[:60]}...")
                 return None
+            if len(tweet_text) > 280:
+                tweet_text = tweet_text[:277] + "..."
             logger.info(
                 f"Generated tweet ({len(tweet_text)} chars) "
                 f"[type={length_mode}] [topic={topic_category[:25]}]: "

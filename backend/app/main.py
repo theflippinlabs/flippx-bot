@@ -11,30 +11,30 @@ from app.services.scheduler_service import scheduler_service
 logger = logging.getLogger(__name__)
 
 
-def _refresh_queue():
-    """Clear old pending tweets and generate 100 fresh ones on deploy."""
+def _seed_queue_if_empty():
+    """Generate 100 tweets on startup if queue is empty."""
     import threading
 
-    def _do_refresh():
+    def _do_seed():
         from app.models.tweet import TweetQueue, TweetStatus
         from app.services.twitter_service import twitter_service
 
         db = SessionLocal()
         try:
-            # Clear all existing pending tweets
-            deleted = db.query(TweetQueue).filter(
+            pending = db.query(TweetQueue).filter(
                 TweetQueue.status == TweetStatus.pending
-            ).delete()
-            db.commit()
-            logger.info(f"Cleared {deleted} old pending tweets from queue")
+            ).count()
+            if pending >= 10:
+                logger.info(f"Queue has {pending} pending tweets, skipping startup seed")
+                return
 
-            # Generate 100 fresh tweets (retry rejected ones up to 150 attempts)
+            logger.info(f"Queue low ({pending} pending), generating 100 fresh tweets...")
             topics = twitter_service.fetch_trending_topics()
             generated = 0
             attempts = 0
-            while generated < 100 and attempts < 160:
+            while generated < 100 and attempts < 200:
                 attempts += 1
-                if generated > 0 and generated % 10 == 0 and attempts % 10 == 1:
+                if generated > 0 and generated % 10 == 0:
                     topics = twitter_service.fetch_trending_topics()
 
                 tweet_text = twitter_service.generate_tweet(topics)
@@ -52,18 +52,18 @@ def _refresh_queue():
                 db.commit()
                 generated += 1
                 if generated % 20 == 0:
-                    logger.info(f"Generated {generated}/100 fresh tweets ({attempts} attempts)...")
+                    logger.info(f"Seed progress: {generated}/100 tweets ({attempts} attempts)")
 
-            logger.info(f"Queue refresh complete: {generated} tweets in {attempts} attempts")
+            logger.info(f"Seed complete: {generated} tweets in {attempts} attempts")
         except Exception as e:
             db.rollback()
-            logger.error(f"Queue refresh failed: {e}")
+            logger.error(f"Queue seed failed: {e}")
         finally:
             db.close()
 
-    thread = threading.Thread(target=_do_refresh, daemon=True)
+    thread = threading.Thread(target=_do_seed, daemon=True)
     thread.start()
-    logger.info("Started queue refresh in background thread")
+    logger.info("Started queue seed in background thread")
 
 
 def _log_env_debug():
@@ -114,7 +114,7 @@ async def lifespan(app: FastAPI):
     _log_env_debug()
     Base.metadata.create_all(bind=engine)
     _migrate_db()
-    _refresh_queue()
+    _seed_queue_if_empty()
     try:
         scheduler_service.start()
     except Exception as e:
