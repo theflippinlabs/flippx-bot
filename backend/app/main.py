@@ -46,4 +46,10 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    from app.config import settings
+    key = settings.API_KEY
+    return {
+        "status": "healthy",
+        "api_key_preview": f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "too_short",
+        "api_key_len": len(key),
+    }
