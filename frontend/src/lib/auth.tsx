@@ -24,13 +24,13 @@ function hashPassword(password: string): string {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    const session = sessionStorage.getItem(SESSION_KEY)
+    const session = localStorage.getItem(SESSION_KEY)
     return session === hashPassword(ADMIN_PASSWORD)
   })
 
   const login = useCallback((password: string): boolean => {
     if (password === ADMIN_PASSWORD) {
-      sessionStorage.setItem(SESSION_KEY, hashPassword(ADMIN_PASSWORD))
+      localStorage.setItem(SESSION_KEY, hashPassword(ADMIN_PASSWORD))
       setIsAuthenticated(true)
       return true
     }
@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem(SESSION_KEY)
     setIsAuthenticated(false)
   }, [])
 

@@ -38,14 +38,14 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(false) }}
               placeholder="Password"
-              className={`input text-center text-lg tracking-wider ${error ? 'ring-2 ring-red-500 border-red-500' : ''}`}
+              className={`input text-center text-lg tracking-wider min-h-[48px] ${error ? 'ring-2 ring-red-500 border-red-500' : ''}`}
               autoFocus
             />
             {error && (
               <p className="text-red-400 text-sm text-center mt-2">Wrong password</p>
             )}
           </div>
-          <button type="submit" className="btn-primary w-full">
+          <button type="submit" className="btn-primary w-full min-h-[48px] text-base">
             Unlock
           </button>
         </form>

@@ -126,12 +126,12 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Today's Stats */}
+      {/* Stats — same data as Analytics/Stats page */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Posts" value={stats?.posts_today ?? 0} icon={Send} color="bg-sky-400/10 text-sky-400" />
-        <StatCard label="Replies" value={stats?.replies_today ?? 0} icon={MessageCircle} color="bg-purple-400/10 text-purple-400" />
-        <StatCard label="Likes" value={stats?.likes_today ?? 0} icon={Heart} color="bg-pink-400/10 text-pink-400" />
-        <StatCard label="Retweets" value={stats?.retweets_today ?? 0} icon={Repeat2} color="bg-emerald-400/10 text-emerald-400" />
+        <StatCard label="Tweets" value={stats?.total_tweets ?? 0} icon={Send} color="bg-sky-400/10 text-sky-400" />
+        <StatCard label="Today" value={stats?.tweets_today ?? 0} icon={Clock} color="bg-purple-400/10 text-purple-400" />
+        <StatCard label="Likes" value={stats?.total_likes ?? 0} icon={Heart} color="bg-pink-400/10 text-pink-400" />
+        <StatCard label="Impressions" value={stats?.total_impressions ?? 0} icon={TrendingUp} color="bg-emerald-400/10 text-emerald-400" />
       </div>
 
       {/* Quick Compose */}
@@ -181,32 +181,38 @@ export default function Dashboard() {
 
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {activity.slice(0, 30).map((item: {
-            type: string
+            id: number
             content: string
             source: string
             tweet_id: string
-            timestamp: string
-            metrics: { likes: number; retweets: number; impressions: number; replies: number } | null
-          }, idx: number) => {
-            const config = activityIcons[item.type] ?? activityIcons.posted
+            sent_at: string
+            likes: number
+            retweets: number
+            impressions: number
+            replies: number
+          }) => {
+            const config = activityIcons.posted
             const Icon = config.icon
             return (
-              <div key={`${item.tweet_id}-${idx}`} className="flex items-start gap-3 p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors">
+              <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${config.color}`}>
                   <Icon className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-slate-300 capitalize">{item.type}</span>
+                    <span className="text-xs font-medium text-slate-300">Posted</span>
                     {item.source && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">{item.source}</span>
+                    )}
+                    {item.impressions > 0 && (
+                      <span className="text-[10px] text-slate-500">{item.impressions} views</span>
                     )}
                   </div>
                   {item.content && (
                     <p className="text-xs text-slate-400 mt-0.5 truncate">{item.content}</p>
                   )}
                   <p className="text-[10px] text-slate-600 mt-1">
-                    {item.timestamp ? formatDistanceToNow(new Date(item.timestamp), { addSuffix: true }) : ''}
+                    {item.sent_at ? formatDistanceToNow(new Date(item.sent_at), { addSuffix: true }) : ''}
                   </p>
                 </div>
               </div>
