@@ -28,7 +28,7 @@ interface BotSettings {
 
 export default function SettingsPage() {
   const queryClient = useQueryClient()
-  const { data: settings, isLoading } = useQuery<BotSettings>({
+  const { data: settings, isLoading, isError, error } = useQuery<BotSettings>({
     queryKey: ['settings'],
     queryFn: getSettings,
   })
@@ -49,7 +49,9 @@ export default function SettingsPage() {
     onError: (err: Error) => toast.error(err.message),
   })
 
-  if (isLoading || !form) return <div className="p-8 text-slate-400">Chargement...</div>
+  if (isLoading) return <div className="p-8 text-slate-400">Chargement...</div>
+  if (isError) return <div className="p-8 text-red-400">Erreur: {(error as Error)?.message || 'Impossible de charger les settings'}</div>
+  if (!form) return <div className="p-8 text-slate-400">Chargement...</div>
 
   const update = (key: keyof BotSettings, value: unknown) => {
     setForm(prev => prev ? { ...prev, [key]: value } : prev)
