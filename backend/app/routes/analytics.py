@@ -47,29 +47,25 @@ def get_timeline(
     api_key: str = Depends(verify_api_key),
 ):
     from datetime import datetime, timedelta
-    from sqlalchemy import cast, Date
 
     cutoff = datetime.utcnow() - timedelta(days=days)
-    results = (
-        db.query(
-            cast(TweetLog.sent_at, Date).label("date"),
-            func.count(TweetLog.id).label("tweets"),
-            func.sum(TweetLog.likes).label("likes"),
-            func.sum(TweetLog.retweets).label("retweets"),
-            func.sum(TweetLog.impressions).label("impressions"),
-        )
+    logs = (
+        db.query(TweetLog)
         .filter(TweetLog.sent_at >= cutoff)
-        .group_by(cast(TweetLog.sent_at, Date))
-        .order_by(cast(TweetLog.sent_at, Date))
+        .order_by(TweetLog.sent_at)
         .all()
     )
-    return [
-        {
-            "date": str(r.date),
-            "tweets": r.tweets,
-            "likes": r.likes or 0,
-            "retweets": r.retweets or 0,
-            "impressions": r.impressions or 0,
-        }
-        for r in results
-    ]
+
+    # Group by date in Python to avoid PostgreSQL cast issues
+    by_date: dict = {}
+    for log in logs:
+        if log.sent_at:
+            d = log.sent_at.strftime("%Y-%m-%d")
+            if d not in by_date:
+                by_date[d] = {"date": d, "tweets": 0, "likes": 0, "retweets": 0, "impressions": 0}
+            by_date[d]["tweets"] += 1
+            by_date[d]["likes"] += log.likes or 0
+            by_date[d]["retweets"] += log.retweets or 0
+            by_date[d]["impressions"] += log.impressions or 0
+
+    return sorted(by_date.values(), key=lambda x: x["date"])
