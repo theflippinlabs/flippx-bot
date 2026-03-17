@@ -16,7 +16,7 @@ export default function QueuePage() {
   const [ruleMatchType, setRuleMatchType] = useState('contains')
   const queryClient = useQueryClient()
 
-  const { data: queueData } = useQuery({ queryKey: ['queue'], queryFn: () => getQueueTweets('pending') })
+  const { data: queueData, isError: queueError, error: queueErr } = useQuery({ queryKey: ['queue'], queryFn: () => getQueueTweets('pending') })
   const { data: rules } = useQuery({ queryKey: ['rules'], queryFn: getRules })
 
   const addQueueMutation = useMutation({
@@ -97,7 +97,8 @@ export default function QueuePage() {
           {/* Queue list */}
           <div className="card space-y-3">
             <h2 className="font-semibold">En attente ({queueData?.total ?? 0})</h2>
-            {queueData?.tweets?.length === 0 && <p className="text-slate-500 text-sm">La queue est vide.</p>}
+            {queueError && <p className="text-red-400 text-sm">Erreur API: {(queueErr as Error)?.message}</p>}
+            {!queueError && queueData?.tweets?.length === 0 && <p className="text-slate-500 text-sm">La queue est vide.</p>}
             {queueData?.tweets?.map((tweet: { id: number; content: string; priority: number; created_at: string }) => (
               <div key={tweet.id} className="flex items-center gap-3 border border-slate-800 rounded-lg p-3">
                 <span className="badge bg-sky-500/10 text-sky-400 shrink-0">P{tweet.priority}</span>

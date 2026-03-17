@@ -30,8 +30,8 @@ export const cancelScheduledTweet = (id: number) =>
   api.delete(`/scheduler/${id}`).then(r => r.data)
 
 // Queue
-export const getQueueTweets = (status = 'pending') =>
-  api.get('/queue/tweets', { params: { status } }).then(r => r.data)
+export const getQueueTweets = (status = 'pending', limit = 200) =>
+  api.get('/queue/tweets', { params: { status, limit } }).then(r => r.data)
 export const addToQueue = (content: string, priority = 0) =>
   api.post('/queue/tweets', { content, priority }).then(r => r.data)
 export const removeFromQueue = (id: number) =>
