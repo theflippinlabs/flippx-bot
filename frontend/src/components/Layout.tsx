@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query'
 import { getBotStatus } from '../lib/api'
 
 const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/scheduler', icon: Calendar, label: 'Scheduler' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Home' },
+  { to: '/scheduler', icon: Calendar, label: 'Schedule' },
   { to: '/library', icon: BookOpen, label: 'Library' },
-  { to: '/queue', icon: List, label: 'Queue & Rules' },
-  { to: '/analytics', icon: BarChart2, label: 'Analytics' },
+  { to: '/queue', icon: List, label: 'Queue' },
+  { to: '/analytics', icon: BarChart2, label: 'Stats' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
@@ -20,9 +20,9 @@ export default function Layout() {
   })
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
+    <div className="flex flex-col md:flex-row h-screen overflow-hidden">
+      {/* Desktop Sidebar - hidden on mobile */}
+      <aside className="hidden md:flex w-64 bg-slate-900 border-r border-slate-800 flex-col shrink-0">
         {/* Logo */}
         <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -75,10 +75,32 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto bg-slate-950">
+      {/* Main content - add bottom padding on mobile for nav bar */}
+      <main className="flex-1 overflow-y-auto bg-slate-950 pb-20 md:pb-0">
         <Outlet />
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 z-50 safe-area-bottom">
+        <div className="flex items-stretch justify-around">
+          {navItems.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                `flex flex-col items-center justify-center gap-0.5 py-2 px-1 min-h-[56px] min-w-[48px] flex-1 transition-colors ${
+                  isActive
+                    ? 'text-sky-400'
+                    : 'text-slate-500'
+                }`
+              }
+            >
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-medium leading-tight">{label}</span>
+            </NavLink>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }

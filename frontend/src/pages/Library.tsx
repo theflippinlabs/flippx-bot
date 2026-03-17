@@ -68,24 +68,24 @@ export default function LibraryPage() {
   ]
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-sky-400" />
+    <div className="p-4 md:p-8 space-y-4 md:space-y-6">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+            <BookOpen className="w-5 md:w-6 h-5 md:h-6 text-sky-400" />
             Library
           </h1>
-          <p className="text-slate-400 mt-1 text-sm">{total} tweets total</p>
+          <p className="text-slate-400 text-sm">{total} tweets</p>
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1">
-          <Filter className="w-4 h-4 text-slate-500 ml-2" />
+        <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1 overflow-x-auto">
+          <Filter className="w-4 h-4 text-slate-500 ml-2 shrink-0" />
           {filters.map(f => (
             <button
               key={f.value}
               onClick={() => { setFilter(f.value); setPage(0) }}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`px-3 py-2 rounded-md text-xs font-medium transition-colors whitespace-nowrap min-h-[36px] ${
                 filter === f.value
                   ? 'bg-slate-700 text-white'
                   : 'text-slate-400 hover:text-white'
@@ -148,7 +148,7 @@ export default function LibraryPage() {
                   <button
                     onClick={() => deleteMutation.mutate(tweet.id)}
                     disabled={deleteMutation.isPending}
-                    className="text-slate-600 hover:text-red-400 transition-colors shrink-0 p-1"
+                    className="text-slate-600 hover:text-red-400 transition-colors shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
                     title="Delete tweet"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -162,21 +162,21 @@ export default function LibraryPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-4">
+        <div className="flex items-center justify-center gap-2 pt-2 md:pt-4">
           <button
             onClick={() => setPage(p => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+            className="px-4 py-2.5 rounded-lg text-sm font-medium bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors min-h-[44px]"
           >
-            Previous
+            Prev
           </button>
           <span className="text-sm text-slate-500">
-            Page {page + 1} of {totalPages}
+            {page + 1}/{totalPages}
           </span>
           <button
             onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
             disabled={page >= totalPages - 1}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+            className="px-4 py-2.5 rounded-lg text-sm font-medium bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors min-h-[44px]"
           >
             Next
           </button>

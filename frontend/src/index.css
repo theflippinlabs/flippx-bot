@@ -40,3 +40,25 @@
 .animate-shake {
   animation: shake 0.5s ease-in-out;
 }
+
+/* iPhone safe area for bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevent horizontal overflow on mobile */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Touch-friendly inputs on mobile */
+@media (max-width: 768px) {
+  input[type="number"],
+  input[type="text"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+}

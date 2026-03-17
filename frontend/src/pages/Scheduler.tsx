@@ -44,28 +44,28 @@ export default function SchedulerPage() {
   })
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-8 space-y-4 md:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">Scheduler</h1>
-        <p className="text-slate-400 mt-1">Programme tes tweets à l'avance</p>
+        <h1 className="text-xl md:text-2xl font-bold">Scheduler</h1>
+        <p className="text-slate-400 mt-0.5 text-sm">Programme tes tweets</p>
       </div>
 
       {/* Form */}
-      <div className="card space-y-4">
-        <h2 className="font-semibold flex items-center gap-2"><Plus className="w-4 h-4" />Nouveau tweet programmé</h2>
+      <div className="card !p-4 md:!p-6 space-y-3 md:space-y-4">
+        <h2 className="font-semibold text-sm flex items-center gap-2"><Plus className="w-4 h-4" />Nouveau tweet</h2>
         <textarea
-          className="input resize-none h-24"
+          className="input resize-none h-24 text-sm"
           placeholder="Contenu du tweet..."
           value={content}
           onChange={e => setContent(e.target.value)}
           maxLength={280}
         />
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
             <label className="block text-xs text-slate-400 mb-1">Date et heure</label>
             <input
               type="datetime-local"
-              className="input"
+              className="input min-h-[44px]"
               value={scheduledAt}
               onChange={e => setScheduledAt(e.target.value)}
               min={new Date().toISOString().slice(0, 16)}
@@ -73,7 +73,7 @@ export default function SchedulerPage() {
           </div>
           <div className="flex items-end">
             <button
-              className="btn-primary flex items-center gap-2 h-10"
+              className="btn-primary flex items-center gap-2 min-h-[44px] w-full sm:w-auto justify-center"
               disabled={!content.trim() || !scheduledAt || createMutation.isPending}
               onClick={() => createMutation.mutate()}
             >
@@ -85,11 +85,11 @@ export default function SchedulerPage() {
       </div>
 
       {/* List */}
-      <div className="card space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Tweets programmés ({data?.total ?? 0})</h2>
+      <div className="card !p-4 md:!p-6 space-y-3 md:space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-sm">Programmés ({data?.total ?? 0})</h2>
           <select
-            className="input w-40"
+            className="input w-32 md:w-40 min-h-[44px] text-sm"
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
           >
@@ -105,13 +105,13 @@ export default function SchedulerPage() {
           <p className="text-slate-500 text-sm">Aucun tweet programmé.</p>
         )}
 
-        <div className="space-y-3">
+        <div className="space-y-2 md:space-y-3">
           {data?.tweets?.map((tweet: { id: number; content: string; scheduled_at: string; status: string }) => (
-            <div key={tweet.id} className="border border-slate-800 rounded-lg p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 space-y-2">
-                  <p className="text-sm text-slate-200">{tweet.content}</p>
-                  <div className="flex items-center gap-3 text-xs text-slate-500">
+            <div key={tweet.id} className="border border-slate-800 rounded-lg p-3 md:p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <p className="text-sm text-slate-200 line-clamp-3">{tweet.content}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {format(new Date(tweet.scheduled_at), 'PPp', { locale: fr })}
@@ -121,7 +121,7 @@ export default function SchedulerPage() {
                 </div>
                 {tweet.status === 'pending' && (
                   <button
-                    className="text-slate-500 hover:text-red-400 transition-colors"
+                    className="text-slate-500 hover:text-red-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0"
                     onClick={() => cancelMutation.mutate(tweet.id)}
                   >
                     <Trash2 className="w-4 h-4" />
