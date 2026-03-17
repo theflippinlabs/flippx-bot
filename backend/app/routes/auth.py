@@ -1,24 +1,14 @@
-import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import APIKeyHeader
 from app.config import settings
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def verify_api_key(api_key: str = Depends(api_key_header)):
-    # Strip whitespace/newlines that env var managers sometimes add
-    expected_key = settings.API_KEY.strip() if settings.API_KEY else ""
-    received_key = api_key.strip() if api_key else ""
-    # Skip auth if API_KEY was never configured (still default placeholder)
-    if expected_key in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""):
-        return api_key or "no-key"
-    if not received_key or received_key != expected_key:
-        logger.warning(f"API key mismatch: received_len={len(received_key)}, expected_len={len(expected_key)}")
-        raise HTTPException(status_code=403, detail="Invalid or missing API key")
+    if api_key != settings.API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
     return api_key
 
 
@@ -32,10 +22,20 @@ def get_profile(api_key: str = Depends(verify_api_key)):
 @router.get("/status")
 def get_bot_status(api_key: str = Depends(verify_api_key)):
     from app.services.scheduler_service import scheduler_service
-    from app.services.bot_state import is_bot_enabled, is_auto_reply_enabled
+    from app.database import SessionLocal
+    from app.models.bot_settings import BotSettings
+
+    db = SessionLocal()
+    try:
+        s = db.query(BotSettings).first()
+        bot_enabled = s.bot_enabled if s else settings.BOT_ENABLED
+        auto_reply = s.auto_reply_enabled if s else settings.AUTO_REPLY_ENABLED
+    finally:
+        db.close()
+
     return {
-        "bot_enabled": is_bot_enabled(),
-        "auto_reply_enabled": is_auto_reply_enabled(),
+        "bot_enabled": bot_enabled,
+        "auto_reply_enabled": auto_reply,
         "scheduler_running": scheduler_service.scheduler.running,
         "jobs": scheduler_service.get_jobs(),
     }
@@ -43,206 +43,27 @@ def get_bot_status(api_key: str = Depends(verify_api_key)):
 
 @router.post("/toggle")
 def toggle_bot(api_key: str = Depends(verify_api_key)):
-    from app.services.bot_state import toggle_bot as db_toggle
-    new_state = db_toggle()
-    return {"bot_enabled": new_state}
+    from app.database import SessionLocal
+    from app.models.bot_settings import BotSettings
+
+    db = SessionLocal()
+    try:
+        s = db.query(BotSettings).first()
+        if not s:
+            s = BotSettings(id=1)
+            db.add(s)
+        s.bot_enabled = not s.bot_enabled
+        db.commit()
+        return {"bot_enabled": s.bot_enabled}
+    finally:
+        db.close()
 
 
 @router.post("/run-cycle")
-def run_cycle(api_key: str = Depends(verify_api_key)):
-    import threading
+def run_bot_cycle(api_key: str = Depends(verify_api_key)):
     from app.services.twitter_service import twitter_service
-
-    thread = threading.Thread(target=twitter_service.run_bot_cycle, daemon=True)
-    thread.start()
-    return {"triggered": True}
-
-
-@router.get("/debug-auth")
-def debug_auth():
-    """Unauthenticated debug endpoint to diagnose API key issues."""
-    key = settings.API_KEY.strip() if settings.API_KEY else ""
-    return {
-        "backend_api_key_len": len(key),
-        "backend_api_key_prefix": key[:8] + "..." if len(key) > 8 else key,
-        "is_placeholder": key in ("your-dashboard-api-key", "your-strong-random-api-key-here", ""),
-    }
-
-
-@router.get("/debug-generate")
-def debug_generate(api_key: str = Depends(verify_api_key)):
-    """Test tweet generation and return raw result for debugging."""
-    from app.services.twitter_service import twitter_service
-    import traceback
     try:
-        topics = twitter_service.fetch_trending_topics()
-        topic_info = f"{len(topics)} topics" if topics else "no topics"
-
-        # Try raw Claude call
-        from app.config import settings as cfg
-        raw_result = None
-        clean_result = None
-        error = None
-        try:
-            response = twitter_service.claude.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=400,
-                messages=[{"role": "user", "content": "Write a single tweet about AI in 200 characters. Just the tweet text, nothing else."}],
-            )
-            raw_result = response.content[0].text
-            clean_result = twitter_service._clean_tweet(raw_result)
-        except Exception as e:
-            error = f"{type(e).__name__}: {e}"
-
-        # Try full generate_tweet
-        full_result = None
-        full_error = None
-        try:
-            full_result = twitter_service.generate_tweet(topics)
-        except Exception as e:
-            full_error = traceback.format_exc()
-
-        return {
-            "topics": topic_info,
-            "anthropic_key_set": bool(cfg.ANTHROPIC_API_KEY),
-            "anthropic_key_len": len(cfg.ANTHROPIC_API_KEY) if cfg.ANTHROPIC_API_KEY else 0,
-            "raw_claude_result": raw_result,
-            "raw_len": len(raw_result) if raw_result else 0,
-            "clean_result": clean_result,
-            "clean_len": len(clean_result) if clean_result else 0,
-            "claude_error": error,
-            "full_generate_result": full_result,
-            "full_generate_len": len(full_result) if full_result else 0,
-            "full_generate_error": full_error,
-        }
+        twitter_service.run_bot_cycle()
+        return {"message": "Bot cycle triggered"}
     except Exception as e:
-        return {"error": traceback.format_exc()}
-
-
-@router.get("/debug-env")
-def debug_env(api_key: str = Depends(verify_api_key)):
-    """Show all env var names and which Twitter vars pydantic loaded."""
-    import os
-    all_env_names = sorted(os.environ.keys())
-    twitter_vars = {}
-    for k in all_env_names:
-        if "TWITTER" in k or "API" in k or "KEY" in k:
-            val = os.environ[k]
-            # Show more prefix for ANTHROPIC key to verify it matches funded account
-            if "ANTHROPIC" in k:
-                twitter_vars[k] = f"{val[:20]}... (len={len(val)})"
-            else:
-                twitter_vars[k] = f"{val[:12]}... (len={len(val)})"
-    return {
-        "total_env_vars": len(all_env_names),
-        "all_env_names": all_env_names,
-        "twitter_and_api_vars_from_os": twitter_vars,
-        "pydantic_settings_loaded": {
-            "TWITTER_API_KEY": f"len={len(settings.TWITTER_API_KEY)}, val={settings.TWITTER_API_KEY[:8]}..." if settings.TWITTER_API_KEY else "EMPTY",
-            "TWITTER_API_SECRET": f"len={len(settings.TWITTER_API_SECRET)}" if settings.TWITTER_API_SECRET else "EMPTY",
-            "TWITTER_ACCESS_TOKEN": f"len={len(settings.TWITTER_ACCESS_TOKEN)}, val={settings.TWITTER_ACCESS_TOKEN[:8]}..." if settings.TWITTER_ACCESS_TOKEN else "EMPTY",
-            "TWITTER_ACCESS_TOKEN_SECRET": f"len={len(settings.TWITTER_ACCESS_TOKEN_SECRET)}" if settings.TWITTER_ACCESS_TOKEN_SECRET else "EMPTY",
-            "TWITTER_BEARER_TOKEN": f"len={len(settings.TWITTER_BEARER_TOKEN)}" if settings.TWITTER_BEARER_TOKEN else "EMPTY",
-            "API_KEY": f"len={len(settings.API_KEY)}" if settings.API_KEY else "EMPTY",
-            "DATABASE_URL": f"{settings.DATABASE_URL[:30]}...",
-        },
-    }
-
-
-@router.get("/test-twitter")
-def test_twitter_auth(api_key: str = Depends(verify_api_key)):
-    """Diagnostic endpoint — shows exact Twitter error codes and messages."""
-    import tweepy
-    from app.services.twitter_service import twitter_service
-
-    results = {
-        "credentials_set": {
-            "TWITTER_API_KEY": bool(settings.TWITTER_API_KEY),
-            "TWITTER_API_SECRET": bool(settings.TWITTER_API_SECRET),
-            "TWITTER_ACCESS_TOKEN": bool(settings.TWITTER_ACCESS_TOKEN),
-            "TWITTER_ACCESS_TOKEN_SECRET": bool(settings.TWITTER_ACCESS_TOKEN_SECRET),
-            "TWITTER_BEARER_TOKEN": bool(settings.TWITTER_BEARER_TOKEN),
-        },
-        "credential_prefixes": {
-            "API_KEY": settings.TWITTER_API_KEY[:8] + "..." if settings.TWITTER_API_KEY else None,
-            "ACCESS_TOKEN": settings.TWITTER_ACCESS_TOKEN[:8] + "..." if settings.TWITTER_ACCESS_TOKEN else None,
-        },
-        "oauth1_test": None,
-        "bearer_test": None,
-        "checklist": [],
-    }
-
-    # Test OAuth 1.0a (user context) — this is what 401s
-    try:
-        me = twitter_service.client.get_me(user_auth=True)
-        results["oauth1_test"] = {
-            "success": True,
-            "username": me.data.username if me.data else None,
-        }
-    except tweepy.Unauthorized as e:
-        results["oauth1_test"] = {
-            "success": False,
-            "http_status": 401,
-            "error_type": "Unauthorized",
-            "raw_error": str(e),
-            "api_errors": e.api_errors if hasattr(e, "api_errors") else None,
-            "api_codes": e.api_codes if hasattr(e, "api_codes") else None,
-            "api_messages": e.api_messages if hasattr(e, "api_messages") else None,
-            "response_text": e.response.text if hasattr(e, "response") and e.response else None,
-        }
-        results["checklist"] = [
-            "1. Go to console.x.com > your App > Settings > User authentication settings",
-            "2. Ensure App permissions = 'Read and Write' (not just 'Read')",
-            "3. After changing permissions: go to Keys and tokens tab",
-            "4. REGENERATE both Access Token AND Access Token Secret",
-            "5. Update the new tokens in Railway env vars",
-            "6. Redeploy the backend",
-            "7. Make sure the app is attached to a Project (not standalone)",
-        ]
-    except tweepy.Forbidden as e:
-        results["oauth1_test"] = {
-            "success": False,
-            "http_status": 403,
-            "error_type": "Forbidden",
-            "raw_error": str(e),
-            "api_errors": e.api_errors if hasattr(e, "api_errors") else None,
-            "response_text": e.response.text if hasattr(e, "response") and e.response else None,
-        }
-    except Exception as e:
-        results["oauth1_test"] = {
-            "success": False,
-            "error_type": type(e).__name__,
-            "raw_error": str(e),
-        }
-
-    # Test Bearer Token (app context)
-    try:
-        search = twitter_service.bearer_client.search_recent_tweets(
-            query="hello", max_results=10
-        )
-        results["bearer_test"] = {
-            "success": True,
-            "tweets_found": len(search.data) if search.data else 0,
-        }
-    except tweepy.Unauthorized as e:
-        results["bearer_test"] = {
-            "success": False,
-            "http_status": 401,
-            "raw_error": str(e),
-            "response_text": e.response.text if hasattr(e, "response") and e.response else None,
-        }
-    except tweepy.Forbidden as e:
-        results["bearer_test"] = {
-            "success": False,
-            "http_status": 403,
-            "raw_error": str(e),
-            "response_text": e.response.text if hasattr(e, "response") and e.response else None,
-        }
-    except Exception as e:
-        results["bearer_test"] = {
-            "success": False,
-            "error_type": type(e).__name__,
-            "raw_error": str(e),
-        }
-
-    return results
+        raise HTTPException(status_code=500, detail=str(e))

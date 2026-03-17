@@ -87,3 +87,39 @@ def update_settings(
     db.commit()
     db.refresh(s)
     return s
+
+
+# Backward-compatible persona endpoints (old frontend uses these)
+class PersonaResponse(BaseModel):
+    bot_persona: str
+    reply_persona: str
+
+
+class PersonaUpdate(BaseModel):
+    bot_persona: Optional[str] = None
+    reply_persona: Optional[str] = None
+
+
+@router.get("/persona", response_model=PersonaResponse)
+def get_persona(
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
+):
+    s = _get_or_create(db)
+    return PersonaResponse(bot_persona=s.tweet_persona, reply_persona=s.reply_persona)
+
+
+@router.patch("/persona", response_model=PersonaResponse)
+def update_persona(
+    payload: PersonaUpdate,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
+):
+    s = _get_or_create(db)
+    if payload.bot_persona is not None:
+        s.tweet_persona = payload.bot_persona
+    if payload.reply_persona is not None:
+        s.reply_persona = payload.reply_persona
+    db.commit()
+    db.refresh(s)
+    return PersonaResponse(bot_persona=s.tweet_persona, reply_persona=s.reply_persona)

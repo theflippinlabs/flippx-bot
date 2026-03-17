@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.database import engine, Base
-from app.routes import tweets, scheduler, analytics, queue, auth, bot_settings
+from app.routes import tweets, scheduler, analytics, queue, auth, bot_settings, activity
 from app.services.scheduler_service import scheduler_service
 
 
@@ -36,6 +36,7 @@ app.include_router(scheduler.router, prefix="/api/scheduler", tags=["scheduler"]
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 app.include_router(queue.router, prefix="/api/queue", tags=["queue"])
 app.include_router(bot_settings.router, prefix="/api/settings", tags=["settings"])
+app.include_router(activity.router, prefix="/api/activity", tags=["activity"])
 
 
 @app.get("/")
