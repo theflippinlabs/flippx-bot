@@ -3,6 +3,7 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import SchedulerPage from './pages/Scheduler'
 import QueuePage from './pages/Queue'
+import LibraryPage from './pages/Library'
 import AnalyticsPage from './pages/Analytics'
 import SettingsPage from './pages/Settings'
 
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="scheduler" element={<SchedulerPage />} />
           <Route path="queue" element={<QueuePage />} />
+          <Route path="library" element={<LibraryPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
