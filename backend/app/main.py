@@ -46,4 +46,6 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    from app.config import settings
+    db_type = "postgresql" if "postgresql" in settings.DATABASE_URL else "sqlite"
+    return {"status": "healthy", "database": db_type}
