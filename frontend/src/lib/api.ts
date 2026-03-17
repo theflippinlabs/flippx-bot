@@ -56,6 +56,11 @@ export const deleteRule = (id: number) =>
 export const getSettings = () => api.get('/settings/').then(r => r.data)
 export const updateSettings = (data: Record<string, unknown>) =>
   api.patch('/settings/', data).then(r => r.data)
+export const getPersona = () => api.get('/settings/persona').then(r => r.data)
+export const updatePersona = (data: {
+  bot_persona?: string
+  reply_persona?: string
+}) => api.patch('/settings/persona', data).then(r => r.data)
 
 // Analytics
 export const getOverview = () => api.get('/analytics/overview').then(r => r.data)
@@ -67,20 +72,6 @@ export const getTopTweets = (metric = 'likes') =>
 // Bot control
 export const toggleBot = () => api.post('/auth/toggle').then(r => r.data)
 export const triggerBotCycle = () => api.post('/auth/run-cycle').then(r => r.data)
-
-// Settings
-export const getSettings = () => api.get('/settings/').then(r => r.data)
-export const updateSettings = (data: {
-  tweet_interval_minutes?: number
-  replies_per_run?: number
-  likes_per_run?: number
-  retweets_per_run?: number
-}) => api.patch('/settings/', data).then(r => r.data)
-export const getPersona = () => api.get('/settings/persona').then(r => r.data)
-export const updatePersona = (data: {
-  bot_persona?: string
-  reply_persona?: string
-}) => api.patch('/settings/persona', data).then(r => r.data)
 
 // Activity
 export const getActivityLog = (limit = 50) =>
