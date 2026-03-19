@@ -8,20 +8,40 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-TWEET_PERSONA = (
-    "You are a Twitter personality. Your style: engaging, informative, trendy. "
-    "Use 2-3 relevant hashtags per tweet. Use emojis naturally (2-4 per tweet). "
-    "Mix styles: hot takes, news commentary, tips, questions, threads starters. "
-    "Be authentic and relatable. Sound knowledgeable but approachable. "
-    "Every tweet MUST be under 280 characters. Just output the tweet text, nothing else."
+FALLBACK_TWEET_PERSONA = (
+    "Confident, sharp, slightly provocative but always credible. "
+    "Natural conversational English like a real Twitter power user. "
+    "Mix of short punchy takes, bold statements, questions to the audience. "
+    "1-3 emojis max per tweet, sometimes none. Never use markdown, dashes, or special characters."
 )
 
-REPLY_PERSONA = (
-    "You are replying to a tweet. Your style: genuinely engaging, add value, match the energy. "
-    "Never sycophantic — never say 'Great point!', 'Love this!', 'So true!', or similar. "
-    "Keep replies under 200 characters. Be conversational like texting a friend. "
-    "Just output the reply text, nothing else."
+FALLBACK_REPLY_PERSONA = (
+    "Engaging, smart, adds value to the conversation. Short and punchy. "
+    "Never sycophantic. Feels like a real human reply, not a bot."
 )
+
+MENTION_INSTRUCTION = (
+    "IMPORTANT: For approximately 50% of tweets, naturally mention/tag 1-2 relevant well-known accounts "
+    "using @username. Only tag accounts that are genuinely relevant to the tweet topic "
+    "(e.g. @elonmusk for Tesla/SpaceX/X topics, @VitalikButerin for Ethereum, @naval for startups, "
+    "@balaborealismo for AI art, @sama for OpenAI, @CoinDesk for crypto news, @aaborealismo, etc). "
+    "The mention must feel natural — never forced. Max 1-2 tags per tweet."
+)
+
+
+def _get_personas() -> tuple[str, str]:
+    """Load personas from database, fall back to defaults."""
+    try:
+        from app.database import SessionLocal
+        from app.models.bot_settings import BotSettings
+        db = SessionLocal()
+        s = db.query(BotSettings).filter(BotSettings.id == 1).first()
+        db.close()
+        if s:
+            return (s.tweet_persona or FALLBACK_TWEET_PERSONA, s.reply_persona or FALLBACK_REPLY_PERSONA)
+    except Exception:
+        pass
+    return (FALLBACK_TWEET_PERSONA, FALLBACK_REPLY_PERSONA)
 
 SEARCH_QUERIES = [
     "tech", "AI", "startups", "programming", "science",
@@ -148,6 +168,7 @@ class TwitterService:
         else:
             topic_context = "\n".join(topics[:10])
 
+        tweet_persona, _ = _get_personas()
         try:
             response = self.claude.messages.create(
                 model="claude-sonnet-4-20250514",
@@ -158,10 +179,11 @@ class TwitterService:
                         f"Here are some trending tweets for inspiration:\n\n{topic_context}\n\n"
                         "Write ONE original tweet. Don't copy or reference the tweets above directly — "
                         "use them only to understand what topics are hot right now. "
-                        "Be original and have your own take."
+                        "Be original and have your own take.\n\n"
+                        f"{MENTION_INSTRUCTION}"
                     ),
                 }],
-                system=TWEET_PERSONA,
+                system=tweet_persona,
             )
             tweet_text = response.content[0].text.strip().strip('"')
             if len(tweet_text) > 280:
@@ -180,6 +202,7 @@ class TwitterService:
         else:
             topic_context = "\n".join(topics[:10])
 
+        tweet_persona, _ = _get_personas()
         tweets = []
         # Generate in batches of 10 to reduce API calls
         remaining = count
@@ -199,10 +222,11 @@ class TwitterService:
                             "use them only to understand what topics are hot right now. "
                             "Each tweet must be unique in topic and angle. "
                             "Mix styles: hot takes, observations, jokes, questions, mini-stories. "
-                            "Every tweet MUST be under 280 characters."
+                            "Every tweet MUST be under 280 characters.\n\n"
+                            f"{MENTION_INSTRUCTION}"
                         ),
                     }],
-                    system=TWEET_PERSONA,
+                    system=tweet_persona,
                 )
                 raw = response.content[0].text.strip()
                 for line in raw.split("\n"):
@@ -228,6 +252,7 @@ class TwitterService:
 
     def generate_reply(self, tweet_text: str, author_username: str) -> str | None:
         """Use Claude to generate an intelligent reply to a tweet."""
+        _, reply_persona = _get_personas()
         try:
             response = self.claude.messages.create(
                 model="claude-sonnet-4-20250514",
@@ -240,7 +265,7 @@ class TwitterService:
                         "Write ONE reply."
                     ),
                 }],
-                system=REPLY_PERSONA,
+                system=reply_persona,
             )
             reply_text = response.content[0].text.strip().strip('"')
             if len(reply_text) > 200:
