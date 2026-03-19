@@ -497,16 +497,32 @@ class TwitterService:
         logger.info(f"Liked {likes_done} tweets this cycle")
 
     def _step_retweet(self, timeline: list):
-        """Retweet 1 tweet with 50+ likes that hasn't been interacted with."""
+        """Retweet 1 tweet from accounts with 10k+ followers that hasn't been interacted with."""
+        # Load min followers from DB settings (default 10000)
+        min_followers = 10000
+        min_likes = 50
+        try:
+            from app.database import SessionLocal
+            from app.models.bot_settings import BotSettings
+            db = SessionLocal()
+            s = db.query(BotSettings).filter(BotSettings.id == 1).first()
+            if s:
+                min_followers = getattr(s, 'min_followers_to_retweet', 10000) or 10000
+                min_likes = s.min_likes_to_retweet or 50
+            db.close()
+        except Exception:
+            pass
+
         rt_candidates = [
             t for t in timeline
-            if t["metrics"].get("like_count", 0) >= 50
+            if t["metrics"].get("like_count", 0) >= min_likes
+            and t.get("author_followers", 0) >= min_followers
             and not self.is_already_interacted(t["id"])
         ]
         random.shuffle(rt_candidates)
 
         if not rt_candidates:
-            logger.info("No retweet candidates with 50+ likes")
+            logger.info(f"No retweet candidates with {min_likes}+ likes and {min_followers}+ followers")
             return
 
         tweet = rt_candidates[0]

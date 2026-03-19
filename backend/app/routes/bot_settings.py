@@ -30,6 +30,7 @@ class SettingsUpdate(BaseModel):
     max_likes_per_cycle: Optional[int] = Field(None, ge=0, le=20)
     max_retweets_per_cycle: Optional[int] = Field(None, ge=0, le=10)
     min_followers_to_reply: Optional[int] = Field(None, ge=0, le=1000000)
+    min_followers_to_retweet: Optional[int] = Field(None, ge=0, le=1000000)
     min_likes_to_retweet: Optional[int] = Field(None, ge=0, le=10000)
     random_skip_chance: Optional[int] = Field(None, ge=0, le=100)
     min_delay_seconds: Optional[int] = Field(None, ge=0, le=60)
@@ -52,6 +53,7 @@ class SettingsResponse(BaseModel):
     max_likes_per_cycle: int
     max_retweets_per_cycle: int
     min_followers_to_reply: int
+    min_followers_to_retweet: int
     min_likes_to_retweet: int
     random_skip_chance: int
     min_delay_seconds: int

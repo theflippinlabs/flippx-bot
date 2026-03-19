@@ -7,9 +7,24 @@ from app.routes import tweets, scheduler, analytics, queue, auth, bot_settings, 
 from app.services.scheduler_service import scheduler_service
 
 
+def _run_migrations():
+    """Add any missing columns to existing tables."""
+    from sqlalchemy import text, inspect
+    with engine.connect() as conn:
+        inspector = inspect(engine)
+        if "bot_settings" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("bot_settings")]
+            if "min_followers_to_retweet" not in columns:
+                conn.execute(text(
+                    "ALTER TABLE bot_settings ADD COLUMN min_followers_to_retweet INTEGER DEFAULT 10000"
+                ))
+                conn.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
     scheduler_service.start()
     yield
     scheduler_service.shutdown()

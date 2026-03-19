@@ -18,6 +18,7 @@ class BotSettings(Base):
     max_likes_per_cycle = Column(Integer, default=5)
     max_retweets_per_cycle = Column(Integer, default=0)
     min_followers_to_reply = Column(Integer, default=1000)
+    min_followers_to_retweet = Column(Integer, default=10000)
     min_likes_to_retweet = Column(Integer, default=50)
     # Human-like behavior
     random_skip_chance = Column(Integer, default=15)  # percentage
