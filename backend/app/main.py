@@ -1,3 +1,6 @@
+import logging
+import sys
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -5,6 +8,13 @@ from contextlib import asynccontextmanager
 from app.database import engine, Base
 from app.routes import tweets, scheduler, analytics, queue, auth, bot_settings, activity
 from app.services.scheduler_service import scheduler_service
+
+# Configure logging so application logs are visible in Railway
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    stream=sys.stdout,
+)
 
 
 def _run_migrations():

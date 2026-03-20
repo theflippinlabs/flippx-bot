@@ -171,7 +171,7 @@ class TwitterService:
         tweet_persona, _ = _get_personas()
         try:
             response = self.claude.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-4-6",
                 max_tokens=300,
                 messages=[{
                     "role": "user",
@@ -210,7 +210,7 @@ class TwitterService:
             batch_size = min(remaining, 10)
             try:
                 response = self.claude.messages.create(
-                    model="claude-sonnet-4-20250514",
+                    model="claude-sonnet-4-6",
                     max_tokens=4000,
                     messages=[{
                         "role": "user",
@@ -255,7 +255,7 @@ class TwitterService:
         _, reply_persona = _get_personas()
         try:
             response = self.claude.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-4-6",
                 max_tokens=200,
                 messages=[{
                     "role": "user",
