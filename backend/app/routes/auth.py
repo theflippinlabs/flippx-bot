@@ -63,7 +63,7 @@ def toggle_bot(api_key: str = Depends(verify_api_key)):
 def run_bot_cycle(api_key: str = Depends(verify_api_key)):
     from app.services.twitter_service import twitter_service
     try:
-        twitter_service.run_bot_cycle()
+        twitter_service.run_bot_cycle(manual=True)
         return {"message": "Bot cycle triggered"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
