@@ -137,13 +137,8 @@ class SchedulerService:
             if not bot_settings.bot_enabled:
                 return
 
-            # Check active hours
-            now = datetime.now()
-            if not (bot_settings.active_hours_start <= now.hour < bot_settings.active_hours_end):
-                logger.debug(f"Outside active hours ({bot_settings.active_hours_start}-{bot_settings.active_hours_end}), skipping")
-                return
-
             # Check daily limit
+            now = datetime.now()
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             today_count = db.query(TweetQueue).filter(
                 TweetQueue.status == TweetStatus.sent,

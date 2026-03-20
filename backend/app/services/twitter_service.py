@@ -380,12 +380,6 @@ class TwitterService:
     def run_bot_cycle(self, manual: bool = False):
         """Main bot cycle: generate tweet, reply, like, retweet."""
         if not manual:
-            # Active hours check (7AM - 11PM)
-            current_hour = datetime.now().hour
-            if current_hour < 7 or current_hour >= 23:
-                logger.info("Outside active hours (7AM-11PM), skipping cycle")
-                return
-
             # 15% random skip for human-like behavior
             if random.random() < 0.15:
                 logger.info("Random skip triggered (15% chance), skipping cycle")
