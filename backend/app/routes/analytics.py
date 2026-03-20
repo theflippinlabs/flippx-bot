@@ -28,6 +28,9 @@ def get_overview(db: Session = Depends(get_db), api_key: str = Depends(verify_ap
     }
 
 
+_ALLOWED_METRICS = {"likes", "retweets", "impressions", "replies"}
+
+
 @router.get("/top-tweets")
 def get_top_tweets(
     metric: str = "likes",
@@ -35,7 +38,11 @@ def get_top_tweets(
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key),
 ):
-    order_col = getattr(TweetLog, metric, TweetLog.likes)
+    if metric not in _ALLOWED_METRICS:
+        metric = "likes"
+    if limit < 1 or limit > 100:
+        limit = 10
+    order_col = getattr(TweetLog, metric)
     tweets = db.query(TweetLog).order_by(order_col.desc()).limit(limit).all()
     return tweets
 
@@ -48,6 +55,8 @@ def get_timeline(
 ):
     from datetime import datetime, timedelta
 
+    if days < 1 or days > 365:
+        days = 7
     cutoff = datetime.utcnow() - timedelta(days=days)
     logs = (
         db.query(TweetLog)

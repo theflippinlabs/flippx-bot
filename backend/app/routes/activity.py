@@ -17,6 +17,7 @@ def get_activity(
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key),
 ):
+    limit = max(1, min(limit, 500))
     logs = (
         db.query(TweetLog)
         .order_by(TweetLog.sent_at.desc())

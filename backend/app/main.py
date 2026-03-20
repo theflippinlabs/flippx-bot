@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -23,6 +25,17 @@ def _run_migrations():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import logging
+    from app.config import settings
+    _logger = logging.getLogger(__name__)
+    if settings.API_KEY in ("your-dashboard-api-key", ""):
+        _logger.warning(
+            "API_KEY is set to the default value. Set a strong API_KEY env var before deploying."
+        )
+    if settings.SECRET_KEY == "change-me-in-production":
+        _logger.warning(
+            "SECRET_KEY is set to the default value. Set a strong SECRET_KEY env var before deploying."
+        )
     Base.metadata.create_all(bind=engine)
     _run_migrations()
     scheduler_service.start()
@@ -37,9 +50,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_cors_origins = [
+    o.strip()
+    for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with frontend URL in production
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
