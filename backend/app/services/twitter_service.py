@@ -35,10 +35,12 @@ def _get_personas() -> tuple[str, str]:
         from app.database import SessionLocal
         from app.models.bot_settings import BotSettings
         db = SessionLocal()
-        s = db.query(BotSettings).filter(BotSettings.id == 1).first()
-        db.close()
-        if s:
-            return (s.tweet_persona or FALLBACK_TWEET_PERSONA, s.reply_persona or FALLBACK_REPLY_PERSONA)
+        try:
+            s = db.query(BotSettings).filter(BotSettings.id == 1).first()
+            if s:
+                return (s.tweet_persona or FALLBACK_TWEET_PERSONA, s.reply_persona or FALLBACK_REPLY_PERSONA)
+        finally:
+            db.close()
     except Exception:
         pass
     return (FALLBACK_TWEET_PERSONA, FALLBACK_REPLY_PERSONA)
@@ -390,7 +392,21 @@ class TwitterService:
             logger.info("Random skip triggered (15% chance), skipping cycle")
             return
 
-        if not settings.BOT_ENABLED:
+        # Check DB-persisted bot_enabled (set via dashboard toggle)
+        bot_enabled = settings.BOT_ENABLED
+        try:
+            from app.database import SessionLocal
+            from app.models.bot_settings import BotSettings
+            db = SessionLocal()
+            try:
+                s = db.query(BotSettings).filter(BotSettings.id == 1).first()
+                if s is not None:
+                    bot_enabled = s.bot_enabled
+            finally:
+                db.close()
+        except Exception:
+            pass
+        if not bot_enabled:
             logger.info("Bot is disabled, skipping cycle")
             return
 
@@ -505,11 +521,13 @@ class TwitterService:
             from app.database import SessionLocal
             from app.models.bot_settings import BotSettings
             db = SessionLocal()
-            s = db.query(BotSettings).filter(BotSettings.id == 1).first()
-            if s:
-                min_followers = getattr(s, 'min_followers_to_retweet', 10000) or 10000
-                min_likes = s.min_likes_to_retweet or 50
-            db.close()
+            try:
+                s = db.query(BotSettings).filter(BotSettings.id == 1).first()
+                if s:
+                    min_followers = getattr(s, 'min_followers_to_retweet', 10000) or 10000
+                    min_likes = s.min_likes_to_retweet or 50
+            finally:
+                db.close()
         except Exception:
             pass
 
